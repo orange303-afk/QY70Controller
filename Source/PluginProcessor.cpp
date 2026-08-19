@@ -7,6 +7,9 @@
 namespace ids
 {
 constexpr auto part = "part";
+constexpr auto bankMsb = "bankMsb";
+constexpr auto bankLsb = "bankLsb";
+constexpr auto program = "program";
 constexpr auto volume = "volume";
 constexpr auto pan = "pan";
 constexpr auto cutoff = "cutoff";
@@ -20,8 +23,9 @@ constexpr auto variation = "variation";
 
 namespace
 {
-constexpr std::array<const char*, 10> parameterIds {
-    ids::part, ids::volume, ids::pan, ids::cutoff, ids::resonance,
+constexpr std::array<const char*, 13> parameterIds {
+    ids::part, ids::bankMsb, ids::bankLsb, ids::program,
+    ids::volume, ids::pan, ids::cutoff, ids::resonance,
     ids::attack, ids::release, ids::chorus, ids::reverb, ids::variation
 };
 } // namespace
@@ -91,6 +95,9 @@ void QY70ControllerAudioProcessor::parameterChanged(const juce::String& paramete
     std::uint32_t bit = 0;
 
     if (parameterID == ids::part) bit = snapshotDirty;
+    else if (parameterID == ids::bankMsb) bit = bankMsbDirty;
+    else if (parameterID == ids::bankLsb) bit = bankLsbDirty;
+    else if (parameterID == ids::program) bit = programDirty;
     else if (parameterID == ids::volume) bit = volumeDirty;
     else if (parameterID == ids::pan) bit = panDirty;
     else if (parameterID == ids::cutoff) bit = cutoffDirty;
@@ -118,7 +125,8 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
     if (pending == 0)
         return;
 
-    constexpr auto allParameterBits = volumeDirty | panDirty | cutoffDirty
+    constexpr auto allParameterBits = bankMsbDirty | bankLsbDirty | programDirty
+                                      | volumeDirty | panDirty | cutoffDirty
                                       | resonanceDirty | attackDirty | releaseDirty
                                       | chorusDirty | reverbDirty | variationDirty;
 
@@ -135,6 +143,9 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
             midiMessages.addEvent(qy70::makeMultiPartParameterChange(part, parameter, value), 0);
     };
 
+    add(bankMsbDirty, pending, qy70::MultiPartParameter::bankMsb, parameterValue(ids::bankMsb));
+    add(bankLsbDirty, pending, qy70::MultiPartParameter::bankLsb, parameterValue(ids::bankLsb));
+    add(programDirty, pending, qy70::MultiPartParameter::program, parameterValue(ids::program) - 1);
     add(volumeDirty, pending, qy70::MultiPartParameter::volume, parameterValue(ids::volume));
     add(panDirty, pending, qy70::MultiPartParameter::pan, parameterValue(ids::pan));
     add(cutoffDirty, pending, qy70::MultiPartParameter::filterCutoff, parameterValue(ids::cutoff));
@@ -148,7 +159,10 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
     if ((pending & requestDirty) != 0)
     {
         const auto partIndex = static_cast<std::uint8_t>(juce::jlimit(1, 32, part) - 1);
-        constexpr std::array<qy70::MultiPartParameter, 9> requestParameters {
+        constexpr std::array<qy70::MultiPartParameter, 12> requestParameters {
+            qy70::MultiPartParameter::bankMsb,
+            qy70::MultiPartParameter::bankLsb,
+            qy70::MultiPartParameter::program,
             qy70::MultiPartParameter::volume,
             qy70::MultiPartParameter::pan,
             qy70::MultiPartParameter::filterCutoff,
@@ -177,6 +191,9 @@ QY70ControllerAudioProcessor::createParameterLayout()
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     layout.add(std::make_unique<IntParameter>(ids::part, "Part", 1, 32, 1));
+    layout.add(std::make_unique<IntParameter>(ids::bankMsb, "Bank MSB", 0, 127, 0));
+    layout.add(std::make_unique<IntParameter>(ids::bankLsb, "Bank LSB", 0, 127, 0));
+    layout.add(std::make_unique<IntParameter>(ids::program, "Patch", 1, 128, 1));
     layout.add(std::make_unique<IntParameter>(ids::volume, "Volume", 0, 127, 100));
     layout.add(std::make_unique<IntParameter>(ids::pan, "Pan", 0, 127, 64));
     layout.add(std::make_unique<IntParameter>(ids::cutoff, "Cutoff", 0, 127, 64));

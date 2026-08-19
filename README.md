@@ -10,6 +10,7 @@ The first vertical slice translates DAW-automatable controls into Yamaha XG
 Multi Part SysEx:
 
 - part selection 1–32;
+- bank MSB/LSB and patch selection 1–128;
 - volume and pan;
 - filter cutoff and resonance;
 - attack and release;

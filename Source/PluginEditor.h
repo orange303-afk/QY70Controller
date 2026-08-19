@@ -24,9 +24,10 @@ private:
     juce::TextButton fetchButton { "Fetch Part" };
     juce::TextButton sendButton { "Send Snapshot" };
 
-    std::array<juce::Slider, 10> sliders;
-    std::array<std::unique_ptr<SliderAttachment>, 10> attachments;
-    std::array<juce::String, 10> parameterIds;
+    std::array<juce::Slider, 13> sliders;
+    std::array<juce::Label, 13> parameterLabels;
+    std::array<std::unique_ptr<SliderAttachment>, 13> attachments;
+    std::array<juce::String, 13> parameterIds;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(QY70ControllerAudioProcessorEditor)
 };

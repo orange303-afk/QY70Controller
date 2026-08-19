@@ -34,6 +34,16 @@ int main()
                         { 0xF0, 0x43, 0x13, 0x4C, 0x08, 0x1F, 0x0B, 0x64, 0xF7 },
                         "part 32 volume SysEx");
 
+    passed &= expectRaw(qy70::makeMultiPartParameterChange(
+                            1, qy70::MultiPartParameter::bankLsb, 40),
+                        { 0xF0, 0x43, 0x10, 0x4C, 0x08, 0x00, 0x02, 0x28, 0xF7 },
+                        "part 1 bank LSB SysEx");
+
+    passed &= expectRaw(qy70::makeMultiPartParameterChange(
+                            1, qy70::MultiPartParameter::program, 127),
+                        { 0xF0, 0x43, 0x10, 0x4C, 0x08, 0x00, 0x03, 0x7F, 0xF7 },
+                        "part 1 patch 128 SysEx");
+
     passed &= expectRaw(qy70::makeXgParameterRequest(0, { 0x08, 0x00, 0x18 }),
                         { 0xF0, 0x43, 0x30, 0x4C, 0x08, 0x00, 0x18, 0xF7 },
                         "cutoff parameter request");

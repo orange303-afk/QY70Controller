@@ -44,15 +44,18 @@ public:
 private:
     enum DirtyBit : std::uint32_t
     {
-        volumeDirty = 1u << 0,
-        panDirty = 1u << 1,
-        cutoffDirty = 1u << 2,
-        resonanceDirty = 1u << 3,
-        attackDirty = 1u << 4,
-        releaseDirty = 1u << 5,
-        chorusDirty = 1u << 6,
-        reverbDirty = 1u << 7,
-        variationDirty = 1u << 8,
+        bankMsbDirty = 1u << 0,
+        bankLsbDirty = 1u << 1,
+        programDirty = 1u << 2,
+        volumeDirty = 1u << 3,
+        panDirty = 1u << 4,
+        cutoffDirty = 1u << 5,
+        resonanceDirty = 1u << 6,
+        attackDirty = 1u << 7,
+        releaseDirty = 1u << 8,
+        chorusDirty = 1u << 9,
+        reverbDirty = 1u << 10,
+        variationDirty = 1u << 11,
         requestDirty = 1u << 29,
         snapshotDirty = 1u << 30
     };
