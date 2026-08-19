@@ -39,6 +39,7 @@ private:
 
     QY70ControllerAudioProcessor& owner;
     juce::Label title;
+    juce::TextButton xgButton { "Enable XG" };
     juce::TextButton fetchButton { "Fetch Part" };
     juce::TextButton sendButton { "Send Snapshot" };
 

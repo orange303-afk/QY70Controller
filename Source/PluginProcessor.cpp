@@ -3,6 +3,7 @@
 #include "QY70Midi.h"
 
 #include <array>
+#include <cmath>
 
 namespace ids
 {
@@ -44,7 +45,11 @@ QY70ControllerAudioProcessor::~QY70ControllerAudioProcessor()
         parameters.removeParameterListener(id, this);
 }
 
-void QY70ControllerAudioProcessor::prepareToPlay(double, int) {}
+void QY70ControllerAudioProcessor::prepareToPlay(double sampleRate, int)
+{
+    currentSampleRate = sampleRate > 0.0 ? sampleRate : 44100.0;
+    xgWaitSamples = 0;
+}
 void QY70ControllerAudioProcessor::releaseResources() {}
 
 bool QY70ControllerAudioProcessor::isBusesLayoutSupported(const BusesLayout&) const
@@ -57,7 +62,8 @@ void QY70ControllerAudioProcessor::processBlock(juce::AudioBuffer<float>& audio,
 {
     juce::ScopedNoDenormals noDenormals;
     audio.clear();
-    emitPendingMessages(midiMessages);
+    remapInputToSelectedPart(midiMessages);
+    emitPendingMessages(midiMessages, audio.getNumSamples());
 }
 
 juce::AudioProcessorEditor* QY70ControllerAudioProcessor::createEditor()
@@ -90,6 +96,11 @@ void QY70ControllerAudioProcessor::sendCurrentPartSnapshot()
     dirtyMask.fetch_or(snapshotDirty, std::memory_order_release);
 }
 
+void QY70ControllerAudioProcessor::enableXgMode()
+{
+    dirtyMask.fetch_or(xgSystemOnDirty, std::memory_order_release);
+}
+
 void QY70ControllerAudioProcessor::parameterChanged(const juce::String& parameterID, float)
 {
     std::uint32_t bit = 0;
@@ -120,11 +131,45 @@ int QY70ControllerAudioProcessor::parameterValue(const char* id) const
     return 0;
 }
 
-void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMessages)
+void QY70ControllerAudioProcessor::remapInputToSelectedPart(juce::MidiBuffer& midiMessages) const
 {
+    juce::MidiBuffer remapped;
+    const auto channel = juce::jlimit(1, 16, parameterValue(ids::part));
+
+    for (const auto metadata : midiMessages)
+    {
+        auto message = metadata.getMessage();
+        if (message.getChannel() > 0)
+            message.setChannel(channel);
+
+        remapped.addEvent(message, metadata.samplePosition);
+    }
+
+    midiMessages.swapWith(remapped);
+}
+
+void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMessages,
+                                                        int blockSize)
+{
+    if (xgWaitSamples > 0)
+    {
+        xgWaitSamples = juce::jmax(0, xgWaitSamples - blockSize);
+        if (xgWaitSamples > 0)
+            return;
+    }
+
     auto pending = dirtyMask.exchange(0, std::memory_order_acq_rel);
     if (pending == 0)
         return;
+
+    if ((pending & xgSystemOnDirty) != 0)
+    {
+        midiMessages.addEvent(qy70::makeXgSystemOn(), 0);
+        dirtyMask.fetch_or((pending & ~xgSystemOnDirty) | snapshotDirty,
+                           std::memory_order_release);
+        xgWaitSamples = juce::roundToInt(std::ceil(currentSampleRate * 0.06));
+        return;
+    }
 
     constexpr auto allParameterBits = bankMsbDirty | bankLsbDirty | programDirty
                                       | volumeDirty | panDirty | cutoffDirty
@@ -147,10 +192,10 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
     constexpr auto voiceSelectionBits = bankMsbDirty | bankLsbDirty | programDirty;
     if ((pending & voiceSelectionBits) != 0)
     {
-        for (const auto& message : qy70::makeMultiPartVoiceSelection(part,
-                                                                     parameterValue(ids::bankMsb),
-                                                                     parameterValue(ids::bankLsb),
-                                                                     parameterValue(ids::program)))
+        for (const auto& message : qy70::makeChannelVoiceSelection(part,
+                                                                   parameterValue(ids::bankMsb),
+                                                                   parameterValue(ids::bankLsb),
+                                                                   parameterValue(ids::program)))
             midiMessages.addEvent(message, 0);
     }
 
@@ -198,7 +243,7 @@ QY70ControllerAudioProcessor::createParameterLayout()
     using IntParameter = juce::AudioParameterInt;
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    layout.add(std::make_unique<IntParameter>(ids::part, "Part", 1, 32, 1));
+    layout.add(std::make_unique<IntParameter>(ids::part, "Part", 1, 16, 1));
     layout.add(std::make_unique<IntParameter>(ids::bankMsb, "Bank MSB", 0, 127, 0));
     layout.add(std::make_unique<IntParameter>(ids::bankLsb, "Bank LSB", 0, 127, 0));
     layout.add(std::make_unique<IntParameter>(ids::program, "Patch", 1, 128, 1));

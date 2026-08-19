@@ -99,8 +99,11 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
                                                             slider);
     }
 
+    xgButton.setTooltip("Reset the tone generator to XG mode, then resend this part");
+    xgButton.onClick = [this] { owner.enableXgMode(); };
     fetchButton.onClick = [this] { owner.requestCurrentPart(); };
     sendButton.onClick = [this] { owner.sendCurrentPartSnapshot(); };
+    addAndMakeVisible(xgButton);
     addAndMakeVisible(fetchButton);
     addAndMakeVisible(sendButton);
 
@@ -121,9 +124,10 @@ void QY70ControllerAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds().reduced(24);
     auto header = area.removeFromTop(42);
-    title.setBounds(header.removeFromLeft(330));
+    title.setBounds(header.removeFromLeft(280));
     sendButton.setBounds(header.removeFromRight(130).reduced(4));
     fetchButton.setBounds(header.removeFromRight(110).reduced(4));
+    xgButton.setBounds(header.removeFromRight(100).reduced(4));
 
     area.removeFromTop(14);
     auto selectorArea = area.removeFromTop(76);

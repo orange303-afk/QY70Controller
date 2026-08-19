@@ -38,6 +38,7 @@ public:
 
     void requestCurrentPart();
     void sendCurrentPartSnapshot();
+    void enableXgMode();
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
@@ -56,15 +57,19 @@ private:
         chorusDirty = 1u << 9,
         reverbDirty = 1u << 10,
         variationDirty = 1u << 11,
+        xgSystemOnDirty = 1u << 28,
         requestDirty = 1u << 29,
         snapshotDirty = 1u << 30
     };
 
     void parameterChanged(const juce::String& parameterID, float newValue) override;
-    void emitPendingMessages(juce::MidiBuffer& midiMessages);
+    void remapInputToSelectedPart(juce::MidiBuffer& midiMessages) const;
+    void emitPendingMessages(juce::MidiBuffer& midiMessages, int blockSize);
     int parameterValue(const char* id) const;
 
     std::atomic<std::uint32_t> dirtyMask { snapshotDirty };
+    double currentSampleRate = 44100.0;
+    int xgWaitSamples = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(QY70ControllerAudioProcessor)
 };

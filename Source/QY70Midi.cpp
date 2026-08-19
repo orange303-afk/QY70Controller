@@ -30,6 +30,11 @@ juce::MidiMessage makeXgParameterChange(std::uint8_t deviceNumber,
                                                  static_cast<int>(payload.size()));
 }
 
+juce::MidiMessage makeXgSystemOn(std::uint8_t deviceNumber)
+{
+    return makeXgParameterChange(deviceNumber, { 0x00, 0x00, 0x7E }, { 0x00 });
+}
+
 juce::MidiMessage makeMultiPartParameterChange(int partNumber,
                                                MultiPartParameter parameter,
                                                int value,
@@ -45,25 +50,18 @@ juce::MidiMessage makeMultiPartParameterChange(int partNumber,
     return makeXgParameterChange(deviceNumber, address, { sevenBit(value) });
 }
 
-std::vector<juce::MidiMessage> makeMultiPartVoiceSelection(int partNumber,
-                                                           int bankMsb,
-                                                           int bankLsb,
-                                                           int programNumber,
-                                                           std::uint8_t deviceNumber)
+std::vector<juce::MidiMessage> makeChannelVoiceSelection(int midiChannel,
+                                                         int bankMsb,
+                                                         int bankLsb,
+                                                         int programNumber)
 {
+    const auto channel = std::clamp(midiChannel, 1, 16);
+
     return {
-        makeMultiPartParameterChange(partNumber,
-                                     MultiPartParameter::bankMsb,
-                                     bankMsb,
-                                     deviceNumber),
-        makeMultiPartParameterChange(partNumber,
-                                     MultiPartParameter::bankLsb,
-                                     bankLsb,
-                                     deviceNumber),
-        makeMultiPartParameterChange(partNumber,
-                                     MultiPartParameter::program,
-                                     std::clamp(programNumber, 1, 128) - 1,
-                                     deviceNumber)
+        juce::MidiMessage::controllerEvent(channel, 0, sevenBit(bankMsb)),
+        juce::MidiMessage::controllerEvent(channel, 32, sevenBit(bankLsb)),
+        juce::MidiMessage::programChange(channel,
+                                         std::clamp(programNumber, 1, 128) - 1)
     };
 }
 
