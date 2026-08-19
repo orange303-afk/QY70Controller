@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(QY70_BUILD_TESTS "Build protocol tests" ON)
+option(QY70_LAUNCH_STANDALONE_AFTER_BUILD
+       "Launch the macOS standalone app after a successful build"
+       ON)
 
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
     add_subdirectory(JUCE)
@@ -30,6 +33,12 @@ juce_add_plugin(QY70Controller
     VST3_COPY_DIR "$ENV{HOME}/Library/Audio/Plug-Ins/VST3")
 
 juce_generate_juce_header(QY70Controller)
+
+if (APPLE AND QY70_LAUNCH_STANDALONE_AFTER_BUILD)
+    add_custom_command(TARGET QY70Controller_Standalone POST_BUILD
+        COMMAND /usr/bin/open "$<TARGET_BUNDLE_DIR:QY70Controller_Standalone>"
+        COMMENT "Launching QY70 Controller standalone app")
+endif()
 
 target_sources(QY70Controller PRIVATE
     Source/PluginEditor.cpp

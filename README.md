@@ -42,6 +42,10 @@ ctest --test-dir build --output-on-failure
 After a successful VST3 build, CMake automatically copies the plug-in to
 `~/Library/Audio/Plug-Ins/VST3` on macOS.
 
+After a successful Standalone build, macOS automatically opens the generated
+`QY70 Controller.app`. To disable this behaviour, configure with
+`-DQY70_LAUNCH_STANDALONE_AFTER_BUILD=OFF`.
+
 ## Hardware connection
 
 The QY70 has 5-pin MIDI IN/OUT rather than USB. Use a bidirectional USB–MIDI
