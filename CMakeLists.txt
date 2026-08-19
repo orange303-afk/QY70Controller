@@ -1,0 +1,73 @@
+cmake_minimum_required(VERSION 3.22)
+
+project(QY70Controller VERSION 0.1.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(QY70_BUILD_TESTS "Build protocol tests" ON)
+
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/CMakeLists.txt")
+    add_subdirectory(JUCE)
+else()
+    message(FATAL_ERROR "JUCE is missing. Run: git submodule update --init --recursive")
+endif()
+
+juce_add_plugin(QY70Controller
+    COMPANY_NAME "Orange303"
+    BUNDLE_ID "com.orange303.qy70controller"
+    PLUGIN_MANUFACTURER_CODE Orng
+    PLUGIN_CODE Qy70
+    FORMATS AU VST3 Standalone
+    PRODUCT_NAME "QY70 Controller"
+    DESCRIPTION "MIDI editor and controller for Yamaha QY70"
+    IS_SYNTH FALSE
+    IS_MIDI_EFFECT TRUE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT TRUE
+    COPY_PLUGIN_AFTER_BUILD FALSE)
+
+juce_generate_juce_header(QY70Controller)
+
+target_sources(QY70Controller PRIVATE
+    Source/PluginEditor.cpp
+    Source/PluginEditor.h
+    Source/PluginProcessor.cpp
+    Source/PluginProcessor.h
+    Source/QY70Midi.cpp
+    Source/QY70Midi.h)
+
+target_compile_definitions(QY70Controller PUBLIC
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0)
+
+target_link_libraries(QY70Controller PRIVATE
+    juce::juce_audio_utils
+    juce::juce_gui_extra
+    PUBLIC
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_lto_flags
+    juce::juce_recommended_warning_flags)
+
+if (QY70_BUILD_TESTS)
+    enable_testing()
+
+    juce_add_console_app(QY70ProtocolTests
+        PRODUCT_NAME "QY70 Protocol Tests")
+
+    target_sources(QY70ProtocolTests PRIVATE
+        Source/QY70Midi.cpp
+        Source/QY70Midi.h
+        Tests/QY70MidiTests.cpp)
+
+    target_link_libraries(QY70ProtocolTests PRIVATE
+        juce::juce_audio_basics
+        juce::juce_core
+        PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+
+    add_test(NAME QY70ProtocolTests COMMAND QY70ProtocolTests)
+endif()
