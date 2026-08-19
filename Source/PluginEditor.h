@@ -11,6 +11,31 @@
 
 class QY70ControllerAudioProcessor;
 
+class ParameterPage final : public juce::Component
+{
+public:
+    ParameterPage(juce::AudioProcessorValueTreeState& state,
+                  const juce::StringArray& parameterIds,
+                  juce::String description = {});
+    void setParameterLabel(const juce::String& parameterId, const juce::String& text);
+    void resized() override;
+
+private:
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using ComboAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+
+    juce::Viewport viewport;
+    juce::Component content;
+    juce::Label descriptionLabel;
+    juce::StringArray ids;
+    std::vector<std::unique_ptr<juce::Label>> labels;
+    std::vector<std::unique_ptr<juce::Component>> controls;
+    std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
+    std::vector<std::unique_ptr<ComboAttachment>> comboAttachments;
+    std::vector<std::unique_ptr<ButtonAttachment>> buttonAttachments;
+};
+
 class ParameterStepper final : public juce::Component
 {
 public:
@@ -36,11 +61,44 @@ private:
     std::function<void()> valueChangeCallback;
 };
 
-class QY70ControllerAudioProcessorEditor final : public juce::AudioProcessorEditor
+class SequencerPage final : public juce::Component
+{
+public:
+    explicit SequencerPage(QY70ControllerAudioProcessor& processor);
+    void resized() override;
+    void refresh();
+
+private:
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+
+    void selectTrack(int track);
+    void loadTrackSettings();
+
+    QY70ControllerAudioProcessor& owner;
+    juce::Label recordHint;
+    juce::TextButton startButton { "START / REC" };
+    juce::TextButton continueButton { "CONTINUE" };
+    juce::TextButton stopButton { "STOP" };
+    juce::Label patternLabel;
+    ParameterStepper patternStepper;
+    std::array<juce::TextButton, 7> sectionButtons;
+    std::array<juce::TextButton, 8> trackButtons;
+    std::array<juce::TextButton, 16> stepButtons;
+    std::array<juce::Slider, 3> timingSliders;
+    std::array<juce::Label, 3> timingLabels;
+    std::array<std::unique_ptr<SliderAttachment>, 3> timingAttachments;
+    std::array<juce::Slider, 4> trackSliders;
+    std::array<juce::Label, 4> trackLabels;
+    int selectedTrack = 0;
+    bool loadingTrack = false;
+};
+
+class QY70ControllerAudioProcessorEditor final : public juce::AudioProcessorEditor,
+                                                  private juce::Timer
 {
 public:
     explicit QY70ControllerAudioProcessorEditor(QY70ControllerAudioProcessor&);
-    ~QY70ControllerAudioProcessorEditor() override = default;
+    ~QY70ControllerAudioProcessorEditor() override;
 
     void paint(juce::Graphics&) override;
     void resized() override;
@@ -55,6 +113,9 @@ private:
     void showVoiceMenu();
     void selectVoice(const qy70::VoiceDescriptor& voice);
     void stepCatalogVoice(int direction);
+    void layoutVoicePage();
+    void timerCallback() override;
+    void updateEffectLabels();
 
     juce::Label title;
     juce::TextButton voicePreviousButton { juce::String::fromUTF8("\xe2\x97\x80") };
@@ -63,6 +124,16 @@ private:
     juce::TextButton xgButton { "XG OFF" };
     juce::TextButton fetchButton { "Fetch Part" };
     juce::TextButton sendButton { "Send Snapshot" };
+    juce::TextButton resetButton { "Reset Edits" };
+    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    juce::Component voicePage;
+    std::unique_ptr<ParameterPage> partPage;
+    std::unique_ptr<ParameterPage> controllerPage;
+    std::unique_ptr<ParameterPage> pitchPage;
+    std::unique_ptr<ParameterPage> reverbPage;
+    std::unique_ptr<ParameterPage> chorusPage;
+    std::unique_ptr<ParameterPage> variationPage;
+    std::unique_ptr<SequencerPage> sequencerPage;
 
     std::array<ParameterStepper, 4> steppers;
     std::array<juce::Slider, 9> knobSliders;

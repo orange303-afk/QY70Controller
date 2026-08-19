@@ -45,6 +45,51 @@ int main()
                         { 0xF0, 0x43, 0x10, 0x4C, 0x08, 0x00, 0x03, 0x7F, 0xF7 },
                         "part 1 patch 128 SysEx");
 
+    passed &= expectRaw(qy70::makeMultiPartParameterChange(
+                            1, qy70::MultiPartParameter::detune,
+                            qy70::encodeDetuneTenthsHz(0)),
+                        { 0xF0, 0x43, 0x10, 0x4C, 0x08, 0x00, 0x09,
+                          0x08, 0x00, 0xF7 },
+                        "part 1 zero detune two-byte SysEx");
+    passed &= qy70::encodeDetuneTenthsHz(-128)
+              == std::vector<std::uint8_t>({ 0x00, 0x00 });
+    passed &= qy70::encodeDetuneTenthsHz(127)
+              == std::vector<std::uint8_t>({ 0x0F, 0x0F });
+    passed &= qy70::encode14Bit(0x1234)
+              == std::vector<std::uint8_t>({ 0x24, 0x34 });
+
+    passed &= expectRaw(qy70::makeMultiPartParameterChange(
+                            4, qy70::MultiPartParameter::pitchEgInitialLevel, 64),
+                        { 0xF0, 0x43, 0x10, 0x4C, 0x08, 0x03, 0x69, 0x40, 0xF7 },
+                        "part 4 pitch EG initial level SysEx");
+    passed &= expectRaw(qy70::makeEffectParameterChange(0x00, { 0x01, 0x00 }),
+                        { 0xF0, 0x43, 0x10, 0x4C, 0x02, 0x01, 0x00,
+                          0x01, 0x00, 0xF7 },
+                        "reverb Hall 1 type SysEx");
+    passed &= expectRaw(qy70::makeEffectParameterChange(0x40, { 0x05, 0x00 }),
+                        { 0xF0, 0x43, 0x10, 0x4C, 0x02, 0x01, 0x40,
+                          0x05, 0x00, 0xF7 },
+                        "variation Delay LCR type SysEx");
+    passed &= qy70::effectTypes(qy70::EffectBlock::reverb).size() == 12;
+    passed &= qy70::effectTypes(qy70::EffectBlock::chorus).size() == 12;
+    passed &= qy70::effectTypes(qy70::EffectBlock::variation).size() == 44;
+    passed &= qy70::effectParameterNames(qy70::EffectBlock::reverb, 1)[0]
+              == "Reverb Time";
+    passed &= qy70::effectParameterNames(qy70::EffectBlock::chorus, 1)[13]
+              == "LFO Phase Difference";
+    passed &= qy70::effectParameterNames(qy70::EffectBlock::variation, 9)[0]
+              == "Left Delay";
+
+    passed &= expectRaw(qy70::makeTransportStart(), { 0xFA }, "MIDI Start");
+    passed &= expectRaw(qy70::makeTransportContinue(), { 0xFB }, "MIDI Continue");
+    passed &= expectRaw(qy70::makeTransportStop(), { 0xFC }, "MIDI Stop");
+    passed &= expectRaw(qy70::makeTimingClock(), { 0xF8 }, "MIDI Clock");
+    passed &= expectRaw(qy70::makeSongSelect(64), { 0xF3, 0x3F },
+                        "QY70 user pattern 64 select");
+    passed &= expectRaw(qy70::makeSectionControl(qy70::PatternSection::mainA),
+                        { 0xF0, 0x43, 0x7E, 0x00, 0x09, 0x01, 0xF7 },
+                        "QY70 Main A section control");
+
     passed &= expectRaw(qy70::makeXgSystemOn(),
                         { 0xF0, 0x43, 0x10, 0x4C, 0x00, 0x00, 0x7E, 0x00, 0xF7 },
                         "XG System On");

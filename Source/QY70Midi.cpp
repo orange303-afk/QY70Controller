@@ -47,6 +47,17 @@ juce::MidiMessage makeMultiPartParameterChange(int partNumber,
                                                int value,
                                                std::uint8_t deviceNumber)
 {
+    return makeMultiPartParameterChange(partNumber,
+                                        parameter,
+                                        std::vector<std::uint8_t> { sevenBit(value) },
+                                        deviceNumber);
+}
+
+juce::MidiMessage makeMultiPartParameterChange(int partNumber,
+                                               MultiPartParameter parameter,
+                                               const std::vector<std::uint8_t>& data,
+                                               std::uint8_t deviceNumber)
+{
     const auto partIndex = static_cast<std::uint8_t>(std::clamp(partNumber, 1, 32) - 1);
     const std::array<std::uint8_t, 3> address {
         0x08,
@@ -54,7 +65,208 @@ juce::MidiMessage makeMultiPartParameterChange(int partNumber,
         static_cast<std::uint8_t>(parameter)
     };
 
-    return makeXgParameterChange(deviceNumber, address, { sevenBit(value) });
+    return makeXgParameterChange(deviceNumber, address, data);
+}
+
+juce::MidiMessage makeEffectParameterChange(std::uint8_t address,
+                                            const std::vector<std::uint8_t>& data,
+                                            std::uint8_t deviceNumber)
+{
+    return makeXgParameterChange(deviceNumber, { 0x02, 0x01, address }, data);
+}
+
+std::vector<std::uint8_t> encodeDetuneTenthsHz(int tenthsHz)
+{
+    const auto encoded = std::clamp(tenthsHz, -128, 127) + 128;
+    return {
+        static_cast<std::uint8_t>((encoded >> 4) & 0x0F),
+        static_cast<std::uint8_t>(encoded & 0x0F)
+    };
+}
+
+std::vector<std::uint8_t> encode14Bit(int value)
+{
+    const auto encoded = std::clamp(value, 0, 16383);
+    return {
+        static_cast<std::uint8_t>((encoded >> 7) & 0x7F),
+        static_cast<std::uint8_t>(encoded & 0x7F)
+    };
+}
+
+const std::vector<EffectTypeDescriptor>& effectTypes(EffectBlock block)
+{
+    static const std::vector<EffectTypeDescriptor> reverbTypes {
+        { "No Effect", 0x00, 0x00 },
+        { "Rev Hall 1", 0x01, 0x00 }, { "Rev Hall 2", 0x01, 0x01 },
+        { "Rev Room 1", 0x02, 0x00 }, { "Rev Room 2", 0x02, 0x01 },
+        { "Rev Room 3", 0x02, 0x02 }, { "Rev Stage 1", 0x03, 0x00 },
+        { "Rev Stage 2", 0x03, 0x01 }, { "Rev Plate", 0x04, 0x00 },
+        { "Rev White Room", 0x10, 0x00 }, { "Rev Tunnel", 0x11, 0x00 },
+        { "Rev Basement", 0x13, 0x00 }
+    };
+    static const std::vector<EffectTypeDescriptor> chorusTypes {
+        { "No Effect", 0x00, 0x00 },
+        { "Chorus 1", 0x41, 0x00 }, { "Chorus 2", 0x41, 0x01 },
+        { "Chorus 3", 0x41, 0x02 }, { "Chorus 4", 0x41, 0x08 },
+        { "Celeste 1", 0x42, 0x00 }, { "Celeste 2", 0x42, 0x01 },
+        { "Celeste 3", 0x42, 0x02 }, { "Celeste 4", 0x42, 0x08 },
+        { "Flanger 1", 0x43, 0x00 }, { "Flanger 2", 0x43, 0x01 },
+        { "Flanger 3", 0x43, 0x02 }
+    };
+    static const std::vector<EffectTypeDescriptor> variationTypes {
+        { "No Effect", 0x00, 0x00 },
+        { "Rev Hall 1", 0x01, 0x00 }, { "Rev Hall 2", 0x01, 0x01 },
+        { "Rev Room 1", 0x02, 0x00 }, { "Rev Room 2", 0x02, 0x01 },
+        { "Rev Room 3", 0x02, 0x02 }, { "Rev Stage 1", 0x03, 0x00 },
+        { "Rev Stage 2", 0x03, 0x01 }, { "Rev Plate", 0x04, 0x00 },
+        { "Delay L,C,R", 0x05, 0x00 }, { "Delay L,R", 0x06, 0x00 },
+        { "Echo", 0x07, 0x00 }, { "Cross Delay", 0x08, 0x00 },
+        { "Early Reflection 1", 0x09, 0x00 }, { "Early Reflection 2", 0x09, 0x01 },
+        { "Gate Reverb", 0x0A, 0x00 }, { "Reverse Gate", 0x0B, 0x00 },
+        { "Karaoke Reverb 1", 0x14, 0x00 }, { "Karaoke Reverb 2", 0x14, 0x01 },
+        { "Karaoke Reverb 3", 0x14, 0x02 }, { "Thru", 0x40, 0x00 },
+        { "Chorus 1", 0x41, 0x00 }, { "Chorus 2", 0x41, 0x01 },
+        { "Chorus 3", 0x41, 0x02 }, { "Chorus 4", 0x41, 0x08 },
+        { "Celeste 1", 0x42, 0x00 }, { "Celeste 2", 0x42, 0x01 },
+        { "Celeste 3", 0x42, 0x02 }, { "Celeste 4", 0x42, 0x08 },
+        { "Flanger 1", 0x43, 0x00 }, { "Flanger 2", 0x43, 0x01 },
+        { "Flanger 3", 0x43, 0x02 }, { "Symphonic", 0x44, 0x00 },
+        { "Rotary Speaker", 0x45, 0x00 }, { "Tremolo", 0x46, 0x00 },
+        { "Auto Pan", 0x47, 0x00 }, { "Phaser 1", 0x48, 0x00 },
+        { "Phaser 2", 0x48, 0x01 }, { "Distortion", 0x49, 0x00 },
+        { "Overdrive", 0x4A, 0x00 }, { "Amp Simulator", 0x4B, 0x00 },
+        { "3 Band EQ", 0x4C, 0x00 }, { "2 Band EQ", 0x4D, 0x00 },
+        { "Auto Wah", 0x4E, 0x00 }
+    };
+
+    switch (block)
+    {
+        case EffectBlock::reverb: return reverbTypes;
+        case EffectBlock::chorus: return chorusTypes;
+        case EffectBlock::variation: return variationTypes;
+    }
+
+    return variationTypes;
+}
+
+std::array<std::string_view, 16> effectParameterNames(EffectBlock block,
+                                                     int typeIndex)
+{
+    using Names = std::array<std::string_view, 16>;
+    static constexpr Names unused {};
+    static constexpr Names reverbHall {
+        "Reverb Time", "Diffusion", "Initial Delay", "HPF Cutoff",
+        "LPF Cutoff", "Unused", "Unused", "Unused", "Unused", "Dry / Wet",
+        "Reverb Delay", "Density", "ER / Reverb Balance", "Unused",
+        "Feedback Level", "Unused"
+    };
+    static constexpr Names reverbSpace {
+        "LFO Frequency", "LFO PM Depth", "Feedback Level", "Delay Offset",
+        "Unused", "EQ Low Frequency", "EQ Low Gain", "EQ High Frequency",
+        "EQ High Gain", "Dry / Wet", "Unused", "Unused", "Unused", "Unused",
+        "Input Mode", "Unused"
+    };
+    static constexpr Names chorus {
+        "LFO Frequency", "LFO Depth", "Feedback Level", "Delay Offset",
+        "Unused", "EQ Low Frequency", "EQ Low Gain", "EQ High Frequency",
+        "EQ High Gain", "Dry / Wet", "Unused", "Unused", "Unused",
+        "LFO Phase Difference", "Unused", "Unused"
+    };
+    static constexpr Names flanger {
+        "LFO Frequency", "LFO PM Depth", "Feedback Level", "Delay Offset",
+        "Unused", "EQ Low Frequency", "EQ Low Gain", "EQ High Frequency",
+        "EQ High Gain", "Dry / Wet", "Unused", "Unused", "Unused", "Unused",
+        "Input Mode", "Unused"
+    };
+    static constexpr Names delayLcr {
+        "Left Delay", "Right Delay", "Centre Delay", "Feedback Delay",
+        "Feedback Level", "Centre Level", "High Damp", "Unused", "Unused",
+        "Dry / Wet", "Unused", "Unused", "EQ Low Frequency", "EQ Low Gain",
+        "EQ High Frequency", "EQ High Gain"
+    };
+    static constexpr Names delayLr {
+        "Left Delay 1", "Left Feedback", "Right Delay 1", "Right Feedback",
+        "High Damp", "Left Delay 2", "Right Delay 2", "Delay 2 Level",
+        "Unused", "Dry / Wet", "Unused", "Unused", "EQ Low Frequency",
+        "EQ Low Gain", "EQ High Frequency", "EQ High Gain"
+    };
+    static constexpr Names echo {
+        "Left to Right Delay", "Right to Left Delay", "Feedback Level",
+        "Input Select", "High Damp", "Unused", "Unused", "Unused", "Unused",
+        "Dry / Wet", "Unused", "Unused", "EQ Low Frequency", "EQ Low Gain",
+        "EQ High Frequency", "EQ High Gain"
+    };
+    static constexpr Names earlyReflection {
+        "Type", "Room Size", "Diffusion", "Initial Delay", "Feedback Level",
+        "HPF Cutoff", "LPF Cutoff", "Unused", "Unused", "Dry / Wet",
+        "Liveness", "Density", "High Damp", "Unused", "Unused", "Unused"
+    };
+    static constexpr Names gateReverb {
+        "Type", "Room Size", "Diffusion", "Initial Delay", "Feedback Level",
+        "HPF Cutoff", "LPF Cutoff", "Unused", "Unused", "Dry / Wet",
+        "Liveness", "Density", "High Damp", "Unused", "Unused", "Unused"
+    };
+    static constexpr Names variationChorus {
+        "LFO Frequency", "LFO Depth", "Delay Offset", "Unused", "Unused",
+        "EQ Low Frequency", "EQ Low Gain", "EQ High Frequency", "EQ High Gain",
+        "Dry / Wet", "Unused", "Unused", "Unused", "Unused", "Unused", "Unused"
+    };
+
+    if (typeIndex <= 0)
+        return unused;
+    if (block == EffectBlock::reverb)
+        return typeIndex <= 8 ? reverbHall : reverbSpace;
+    if (block == EffectBlock::chorus)
+        return typeIndex <= 8 ? chorus : flanger;
+
+    if (typeIndex >= 1 && typeIndex <= 8) return reverbHall;
+    if (typeIndex == 9) return delayLcr;
+    if (typeIndex == 10) return delayLr;
+    if (typeIndex == 11 || typeIndex == 12) return echo;
+    if (typeIndex == 13 || typeIndex == 14) return earlyReflection;
+    if (typeIndex == 15 || typeIndex == 16) return gateReverb;
+    if (typeIndex >= 17 && typeIndex <= 19) return chorus;
+    if (typeIndex >= 21 && typeIndex <= 28) return variationChorus;
+    if (typeIndex >= 29 && typeIndex <= 31) return flanger;
+    return unused;
+}
+
+juce::MidiMessage makeTransportStart()
+{
+    return juce::MidiMessage::midiStart();
+}
+
+juce::MidiMessage makeTransportContinue()
+{
+    return juce::MidiMessage::midiContinue();
+}
+
+juce::MidiMessage makeTransportStop()
+{
+    return juce::MidiMessage::midiStop();
+}
+
+juce::MidiMessage makeTimingClock()
+{
+    return juce::MidiMessage::midiClock();
+}
+
+juce::MidiMessage makeSongSelect(int patternNumber)
+{
+    return juce::MidiMessage(0xF3, std::clamp(patternNumber, 1, 64) - 1);
+}
+
+juce::MidiMessage makeSectionControl(PatternSection section, bool enabled)
+{
+    const std::array<std::uint8_t, 5> payload {
+        0x43,
+        0x7E,
+        0x00,
+        static_cast<std::uint8_t>(section),
+        static_cast<std::uint8_t>(enabled ? 1 : 0)
+    };
+    return juce::MidiMessage::createSysExMessage(payload.data(),
+                                                 static_cast<int>(payload.size()));
 }
 
 std::vector<juce::MidiMessage> makeChannelVoiceSelection(int midiChannel,
