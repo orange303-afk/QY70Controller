@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "QY70Midi.h"
+#include "VoiceCatalog.h"
 
 #include <algorithm>
 #include <cmath>
@@ -121,6 +122,16 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
     title.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(title);
 
+    voiceNameLabel.setFont(juce::FontOptions(17.0f, juce::Font::bold));
+    voiceNameLabel.setJustificationType(juce::Justification::centred);
+    voiceNameLabel.setColour(juce::Label::backgroundColourId,
+                             juce::Colour::fromRGB(33, 40, 48));
+    voiceNameLabel.setColour(juce::Label::outlineColourId,
+                             juce::Colours::white.withAlpha(0.25f));
+    voiceNameLabel.setColour(juce::Label::textColourId,
+                             juce::Colour::fromRGB(88, 190, 224));
+    addAndMakeVisible(voiceNameLabel);
+
     for (std::size_t i = 0; i < parameterIds.size(); ++i)
     {
         const auto parameterName = owner.parameters.getParameter(parameterIds[i])->getName(64);
@@ -159,6 +170,7 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
 
     steppers[1].setDiscreteValues({ 0, 64, 126, 127 });
     steppers[1].setValueChangeCallback([this] { updateVoiceChoices(true, true); });
+    steppers[2].setValueChangeCallback([this] { updateVoiceName(); });
     steppers[3].setValueChangeCallback([this] { updateVoiceChoices(false, true); });
     updateVoiceChoices(false, false);
 
@@ -207,6 +219,24 @@ void QY70ControllerAudioProcessorEditor::updateVoiceChoices(bool bankChanged, bo
     steppers[2].setDiscreteValues(std::vector<double>(lsbValues.begin(), lsbValues.end()));
     if (resetLsb)
         steppers[2].attachmentSlider().setValue(0, juce::sendNotificationSync);
+
+    updateVoiceName();
+}
+
+void QY70ControllerAudioProcessorEditor::updateVoiceName()
+{
+    const auto bankMsb = juce::roundToInt(steppers[1].attachmentSlider().getValue());
+    const auto bankLsb = juce::roundToInt(steppers[2].attachmentSlider().getValue());
+    const auto program = juce::roundToInt(steppers[3].attachmentSlider().getValue());
+    const auto mode = qy70::voiceModeName(bankMsb);
+    const auto voice = qy70::voiceName(bankMsb, bankLsb, program);
+    const auto modeText = juce::String::fromUTF8(mode.data(), static_cast<int>(mode.size()));
+    const auto voiceText = juce::String::fromUTF8(voice.data(), static_cast<int>(voice.size()));
+
+    voiceNameLabel.setText(modeText + "  ·  " + voiceText
+                               + "   (Patch " + juce::String(program)
+                               + ", Variation " + juce::String(bankLsb) + ")",
+                           juce::dontSendNotification);
 }
 
 void QY70ControllerAudioProcessorEditor::paint(juce::Graphics& g)
@@ -239,7 +269,9 @@ void QY70ControllerAudioProcessorEditor::resized()
         steppers[i].setBounds(cell.reduced(4, 7));
     }
 
-    area.removeFromTop(10);
+    area.removeFromTop(4);
+    voiceNameLabel.setBounds(area.removeFromTop(34).reduced(100, 2));
+    area.removeFromTop(6);
 
     constexpr int columns = 3;
     constexpr int rows = 3;

@@ -260,8 +260,8 @@ QY70ControllerAudioProcessor::createParameterLayout()
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     layout.add(std::make_unique<IntParameter>(ids::part, "Part", 1, 16, 1));
-    layout.add(std::make_unique<IntParameter>(ids::bankMsb, "Bank MSB", 0, 127, 0));
-    layout.add(std::make_unique<IntParameter>(ids::bankLsb, "Bank LSB", 0, 127, 0));
+    layout.add(std::make_unique<IntParameter>(ids::bankMsb, "Voice Mode", 0, 127, 0));
+    layout.add(std::make_unique<IntParameter>(ids::bankLsb, "XG Variation", 0, 127, 0));
     layout.add(std::make_unique<IntParameter>(ids::program, "Patch", 1, 128, 1));
     layout.add(std::make_unique<IntParameter>(ids::volume, "Volume", 0, 127, 100));
     layout.add(std::make_unique<IntParameter>(ids::pan, "Pan", 0, 127, 64));

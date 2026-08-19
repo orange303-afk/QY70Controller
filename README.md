@@ -41,6 +41,10 @@ Program 1 offers LSB 0 (GrandPno), 1 (GrndPnoK), 18 (MelloGrP), 40 (PianoStr),
 and 41 (Dream). Hover a Part, Bank, LSB, or Patch number and use the mouse wheel
 for rapid selection.
 
+The UI calls these selectors **Voice Mode** and **XG Variation** and displays
+the selected voice name from the complete QY70 catalog: 474 XG normal
+program/variation combinations, 45 SFX voices, 18 drum kits, and two SFX kits.
+
 ## Requirements
 
 - macOS or Windows development environment

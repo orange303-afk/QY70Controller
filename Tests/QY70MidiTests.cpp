@@ -1,4 +1,5 @@
 #include "../Source/QY70Midi.h"
+#include "../Source/VoiceCatalog.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -69,6 +70,11 @@ int main()
     passed &= qy70::validProgramsForBank(127)
               == std::vector<int>({ 1, 2, 3, 4, 9, 10, 17, 18, 25, 26, 27,
                                     28, 29, 30, 33, 34, 41, 49 });
+    passed &= qy70::voiceModeName(0) == "XG Normal";
+    passed &= qy70::voiceName(0, 41, 1) == "Dream";
+    passed &= qy70::voiceName(64, 0, 87) == "JetPlane";
+    passed &= qy70::voiceName(126, 0, 2) == "SFX Kit 2";
+    passed &= qy70::voiceName(127, 0, 41) == "Brush Kit";
 
     passed &= expectRaw(qy70::makeXgParameterRequest(0, { 0x08, 0x00, 0x18 }),
                         { 0xF0, 0x43, 0x30, 0x4C, 0x08, 0x00, 0x18, 0xF7 },

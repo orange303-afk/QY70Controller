@@ -49,8 +49,10 @@ private:
     QY70ControllerAudioProcessor& owner;
     void refreshXgButton();
     void updateVoiceChoices(bool bankChanged, bool resetLsb);
+    void updateVoiceName();
 
     juce::Label title;
+    juce::Label voiceNameLabel;
     juce::TextButton xgButton { "XG OFF" };
     juce::TextButton fetchButton { "Fetch Part" };
     juce::TextButton sendButton { "Send Snapshot" };

@@ -46,7 +46,9 @@ target_sources(QY70Controller PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
     Source/QY70Midi.cpp
-    Source/QY70Midi.h)
+    Source/QY70Midi.h
+    Source/VoiceCatalog.cpp
+    Source/VoiceCatalog.h)
 
 target_compile_definitions(QY70Controller PUBLIC
     JUCE_REPORT_APP_USAGE=0
@@ -70,6 +72,8 @@ if (QY70_BUILD_TESTS)
     target_sources(QY70ProtocolTests PRIVATE
         Source/QY70Midi.cpp
         Source/QY70Midi.h
+        Source/VoiceCatalog.cpp
+        Source/VoiceCatalog.h
         Tests/QY70MidiTests.cpp)
 
     target_link_libraries(QY70ProtocolTests PRIVATE
