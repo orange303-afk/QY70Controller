@@ -26,7 +26,8 @@ juce_add_plugin(QY70Controller
     IS_MIDI_EFFECT TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
-    COPY_PLUGIN_AFTER_BUILD FALSE)
+    COPY_PLUGIN_AFTER_BUILD TRUE
+    VST3_COPY_DIR "$ENV{HOME}/Library/Audio/Plug-Ins/VST3")
 
 juce_generate_juce_header(QY70Controller)
 
