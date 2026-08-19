@@ -96,9 +96,11 @@ void QY70ControllerAudioProcessor::sendCurrentPartSnapshot()
     dirtyMask.fetch_or(snapshotDirty, std::memory_order_release);
 }
 
-void QY70ControllerAudioProcessor::enableXgMode()
+void QY70ControllerAudioProcessor::setXgModeEnabled(bool shouldBeEnabled)
 {
-    dirtyMask.fetch_or(xgSystemOnDirty, std::memory_order_release);
+    xgModeEnabled.store(shouldBeEnabled, std::memory_order_release);
+    dirtyMask.fetch_or(shouldBeEnabled ? xgSystemOnDirty : gmSystemOnDirty,
+                       std::memory_order_release);
 }
 
 void QY70ControllerAudioProcessor::parameterChanged(const juce::String& parameterID, float)
@@ -162,10 +164,13 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
     if (pending == 0)
         return;
 
-    if ((pending & xgSystemOnDirty) != 0)
+    constexpr auto systemModeBits = xgSystemOnDirty | gmSystemOnDirty;
+    if ((pending & systemModeBits) != 0)
     {
-        midiMessages.addEvent(qy70::makeXgSystemOn(), 0);
-        dirtyMask.fetch_or((pending & ~xgSystemOnDirty) | snapshotDirty,
+        midiMessages.addEvent(isXgModeEnabled() ? qy70::makeXgSystemOn()
+                                                : qy70::makeGeneralMidiSystemOn(),
+                              0);
+        dirtyMask.fetch_or((pending & ~systemModeBits) | snapshotDirty,
                            std::memory_order_release);
         xgWaitSamples = juce::roundToInt(std::ceil(currentSampleRate * 0.06));
         return;
@@ -192,11 +197,22 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
     constexpr auto voiceSelectionBits = bankMsbDirty | bankLsbDirty | programDirty;
     if ((pending & voiceSelectionBits) != 0)
     {
+        auto sampleOffset = 0;
+        const auto lastSample = juce::jmax(0, blockSize - 1);
         for (const auto& message : qy70::makeChannelVoiceSelection(part,
                                                                    parameterValue(ids::bankMsb),
                                                                    parameterValue(ids::bankLsb),
                                                                    parameterValue(ids::program)))
-            midiMessages.addEvent(message, 0);
+            midiMessages.addEvent(message, juce::jmin(sampleOffset++, lastSample));
+
+        const auto addVoiceSysEx = [&](qy70::MultiPartParameter parameter, int value)
+        {
+            midiMessages.addEvent(qy70::makeMultiPartParameterChange(part, parameter, value),
+                                  juce::jmin(sampleOffset++, lastSample));
+        };
+        addVoiceSysEx(qy70::MultiPartParameter::bankMsb, parameterValue(ids::bankMsb));
+        addVoiceSysEx(qy70::MultiPartParameter::bankLsb, parameterValue(ids::bankLsb));
+        addVoiceSysEx(qy70::MultiPartParameter::program, parameterValue(ids::program) - 1);
     }
 
     add(volumeDirty, pending, qy70::MultiPartParameter::volume, parameterValue(ids::volume));

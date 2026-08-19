@@ -27,14 +27,19 @@ live MIDI channel: incoming channel messages are remapped to the selected part.
 Changing either bank value sends standard MIDI Bank MSB (CC 0), Bank LSB (CC
 32), then Program Change on that channel.
 
-Press **Enable XG** after connecting the QY70. The controller sends XG System
-On, waits 60 ms for the tone generator to reset, then resends the current voice
-and part parameters. XG normal voices use MSB 0; MSB 64 selects SFX normal
-voices, MSB 126 XG SFX kits, and MSB 127 XG drum kits. LSB is a variation for a
-particular program, not a complete parallel bank: only combinations listed in
-the QY70 XG Normal Voice List produce a different voice. For example, Program 1
-supports LSB 0 (GrandPno), 1 (GrndPnoK), 18 (MelloGrP), 40 (PianoStr), and 41
-(Dream).
+The coloured **XG ON / XG OFF** button switches between XG System On and GM
+System On. After either reset, the controller waits 60 ms and resends the
+current voice and part parameters. This is the commanded state; hardware state
+confirmation requires future MIDI-response parsing.
+
+Selectors reject silent/unsupported combinations from the official QY70 voice
+tables. XG normal voices use MSB 0; MSB 64 selects SFX voices, MSB 126 XG SFX
+kits, and MSB 127 XG drum kits. Patch choices automatically follow the selected
+MSB. LSB choices automatically follow the selected normal-voice patch because
+LSB is a per-program variation, not a complete parallel bank. For example,
+Program 1 offers LSB 0 (GrandPno), 1 (GrndPnoK), 18 (MelloGrP), 40 (PianoStr),
+and 41 (Dream). Hover a Part, Bank, LSB, or Patch number and use the mouse wheel
+for rapid selection.
 
 ## Requirements
 

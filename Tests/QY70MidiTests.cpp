@@ -47,6 +47,9 @@ int main()
     passed &= expectRaw(qy70::makeXgSystemOn(),
                         { 0xF0, 0x43, 0x10, 0x4C, 0x00, 0x00, 0x7E, 0x00, 0xF7 },
                         "XG System On");
+    passed &= expectRaw(qy70::makeGeneralMidiSystemOn(),
+                        { 0xF0, 0x7E, 0x7F, 0x09, 0x01, 0xF7 },
+                        "GM System On");
 
     const auto voiceSelection = qy70::makeChannelVoiceSelection(1, 0, 10, 54);
     passed &= voiceSelection.size() == 3;
@@ -59,6 +62,13 @@ int main()
     passed &= expectRaw(voiceSelection[2],
                         { 0xC0, 0x35 },
                         "voice selection program last");
+
+    passed &= qy70::validLsbValues(0, 1) == std::vector<int>({ 0, 1, 18, 40, 41 });
+    passed &= qy70::validLsbValues(64, 1) == std::vector<int>({ 0 });
+    passed &= qy70::validProgramsForBank(126) == std::vector<int>({ 1, 2 });
+    passed &= qy70::validProgramsForBank(127)
+              == std::vector<int>({ 1, 2, 3, 4, 9, 10, 17, 18, 25, 26, 27,
+                                    28, 29, 30, 33, 34, 41, 49 });
 
     passed &= expectRaw(qy70::makeXgParameterRequest(0, { 0x08, 0x00, 0x18 }),
                         { 0xF0, 0x43, 0x30, 0x4C, 0x08, 0x00, 0x18, 0xF7 },

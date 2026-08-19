@@ -1,11 +1,20 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include "QY70Midi.h"
+
+#include <algorithm>
+#include <cmath>
 
 ParameterStepper::ParameterStepper()
 {
     valueSlider.setSliderStyle(juce::Slider::LinearHorizontal);
     valueSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    valueSlider.onValueChange = [this] { syncDisplayedValue(); };
+    valueSlider.onValueChange = [this]
+    {
+        syncDisplayedValue();
+        if (valueChangeCallback)
+            valueChangeCallback();
+    };
 
     previousButton.setTooltip("Previous value");
     nextButton.setTooltip("Next value");
@@ -21,9 +30,11 @@ ParameterStepper::ParameterStepper()
     valueLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     valueLabel.onTextChange = [this]
     {
-        valueSlider.setValue(valueLabel.getText().getDoubleValue(), juce::sendNotificationSync);
+        valueSlider.setValue(nearestDiscreteValue(valueLabel.getText().getDoubleValue()),
+                             juce::sendNotificationSync);
         syncDisplayedValue();
     };
+    valueLabel.addMouseListener(this, false);
 
     addAndMakeVisible(previousButton);
     addAndMakeVisible(valueLabel);
@@ -32,7 +43,54 @@ ParameterStepper::ParameterStepper()
 
 void ParameterStepper::stepBy(double amount)
 {
+    if (!discreteValues.empty())
+    {
+        const auto current = nearestDiscreteValue(valueSlider.getValue());
+        const auto iterator = std::lower_bound(discreteValues.begin(), discreteValues.end(), current);
+        const auto index = static_cast<int>(std::distance(discreteValues.begin(), iterator));
+        const auto nextIndex = juce::jlimit(0,
+                                            static_cast<int>(discreteValues.size()) - 1,
+                                            index + (amount < 0.0 ? -1 : 1));
+        valueSlider.setValue(discreteValues[static_cast<std::size_t>(nextIndex)],
+                             juce::sendNotificationSync);
+        return;
+    }
+
     valueSlider.setValue(valueSlider.getValue() + amount, juce::sendNotificationSync);
+}
+
+double ParameterStepper::nearestDiscreteValue(double value) const
+{
+    if (discreteValues.empty())
+        return value;
+
+    return *std::min_element(discreteValues.begin(), discreteValues.end(),
+                             [value](double left, double right)
+                             {
+                                 return std::abs(left - value) < std::abs(right - value);
+                             });
+}
+
+void ParameterStepper::setDiscreteValues(std::vector<double> values)
+{
+    std::sort(values.begin(), values.end());
+    values.erase(std::unique(values.begin(), values.end()), values.end());
+    discreteValues = std::move(values);
+    valueSlider.setValue(nearestDiscreteValue(valueSlider.getValue()),
+                         juce::sendNotificationSync);
+}
+
+void ParameterStepper::setValueChangeCallback(std::function<void()> callback)
+{
+    valueChangeCallback = std::move(callback);
+}
+
+void ParameterStepper::mouseWheelMove(const juce::MouseEvent&,
+                                      const juce::MouseWheelDetails& wheel)
+{
+    const auto delta = wheel.deltaY != 0.0f ? wheel.deltaY : -wheel.deltaX;
+    if (delta != 0.0f)
+        stepBy(delta > 0.0f ? 1.0 : -1.0);
 }
 
 void ParameterStepper::syncDisplayedValue()
@@ -99,8 +157,18 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
                                                             slider);
     }
 
-    xgButton.setTooltip("Reset the tone generator to XG mode, then resend this part");
-    xgButton.onClick = [this] { owner.enableXgMode(); };
+    steppers[1].setDiscreteValues({ 0, 64, 126, 127 });
+    steppers[1].setValueChangeCallback([this] { updateVoiceChoices(true, true); });
+    steppers[3].setValueChangeCallback([this] { updateVoiceChoices(false, true); });
+    updateVoiceChoices(false, false);
+
+    xgButton.setTooltip("Commanded MIDI mode; hardware confirmation is not available yet");
+    xgButton.onClick = [this]
+    {
+        owner.setXgModeEnabled(!owner.isXgModeEnabled());
+        refreshXgButton();
+    };
+    refreshXgButton();
     fetchButton.onClick = [this] { owner.requestCurrentPart(); };
     sendButton.onClick = [this] { owner.sendCurrentPartSnapshot(); };
     addAndMakeVisible(xgButton);
@@ -110,6 +178,35 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
     setResizable(true, true);
     setResizeLimits(700, 560, 1200, 900);
     setSize(860, 650);
+}
+
+void QY70ControllerAudioProcessorEditor::refreshXgButton()
+{
+    const auto enabled = owner.isXgModeEnabled();
+    xgButton.setButtonText(enabled ? "XG ON" : "XG OFF");
+    xgButton.setColour(juce::TextButton::buttonColourId,
+                       enabled ? juce::Colour::fromRGB(35, 125, 76)
+                               : juce::Colour::fromRGB(90, 47, 47));
+}
+
+void QY70ControllerAudioProcessorEditor::updateVoiceChoices(bool bankChanged, bool resetLsb)
+{
+    if (updatingVoiceChoices)
+        return;
+
+    const juce::ScopedValueSetter<bool> guard(updatingVoiceChoices, true);
+    const auto bankMsb = juce::roundToInt(steppers[1].attachmentSlider().getValue());
+    const auto programs = qy70::validProgramsForBank(bankMsb);
+    steppers[3].setDiscreteValues(std::vector<double>(programs.begin(), programs.end()));
+
+    if (bankChanged && !programs.empty())
+        steppers[3].attachmentSlider().setValue(programs.front(), juce::sendNotificationSync);
+
+    const auto program = juce::roundToInt(steppers[3].attachmentSlider().getValue());
+    const auto lsbValues = qy70::validLsbValues(bankMsb, program);
+    steppers[2].setDiscreteValues(std::vector<double>(lsbValues.begin(), lsbValues.end()));
+    if (resetLsb)
+        steppers[2].attachmentSlider().setValue(0, juce::sendNotificationSync);
 }
 
 void QY70ControllerAudioProcessorEditor::paint(juce::Graphics& g)

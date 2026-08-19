@@ -38,7 +38,8 @@ public:
 
     void requestCurrentPart();
     void sendCurrentPartSnapshot();
-    void enableXgMode();
+    void setXgModeEnabled(bool shouldBeEnabled);
+    bool isXgModeEnabled() const { return xgModeEnabled.load(std::memory_order_acquire); }
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
@@ -57,6 +58,7 @@ private:
         chorusDirty = 1u << 9,
         reverbDirty = 1u << 10,
         variationDirty = 1u << 11,
+        gmSystemOnDirty = 1u << 27,
         xgSystemOnDirty = 1u << 28,
         requestDirty = 1u << 29,
         snapshotDirty = 1u << 30
@@ -68,6 +70,7 @@ private:
     int parameterValue(const char* id) const;
 
     std::atomic<std::uint32_t> dirtyMask { snapshotDirty };
+    std::atomic<bool> xgModeEnabled { false };
     double currentSampleRate = 44100.0;
     int xgWaitSamples = 0;
 
