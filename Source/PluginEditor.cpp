@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 
 ParameterStepper::ParameterStepper()
 {
@@ -113,7 +114,7 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
     QY70ControllerAudioProcessor& processorToUse)
     : AudioProcessorEditor(&processorToUse),
       owner(processorToUse),
-      parameterIds { "part", "bankMsb", "bankLsb", "program",
+      parameterIds { "part", "bankMsb", "program", "bankLsb",
                      "volume", "pan", "cutoff", "resonance",
                      "attack", "release", "chorus", "reverb", "variation" }
 {
@@ -122,15 +123,25 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
     title.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(title);
 
-    voiceNameLabel.setFont(juce::FontOptions(17.0f, juce::Font::bold));
-    voiceNameLabel.setJustificationType(juce::Justification::centred);
-    voiceNameLabel.setColour(juce::Label::backgroundColourId,
-                             juce::Colour::fromRGB(33, 40, 48));
-    voiceNameLabel.setColour(juce::Label::outlineColourId,
-                             juce::Colours::white.withAlpha(0.25f));
-    voiceNameLabel.setColour(juce::Label::textColourId,
-                             juce::Colour::fromRGB(88, 190, 224));
-    addAndMakeVisible(voiceNameLabel);
+    voiceNameButton.setColour(juce::TextButton::buttonColourId,
+                              juce::Colour::fromRGB(33, 40, 48));
+    voiceNameButton.setColour(juce::TextButton::buttonOnColourId,
+                              juce::Colour::fromRGB(42, 54, 64));
+    voiceNameButton.setColour(juce::TextButton::textColourOffId,
+                              juce::Colour::fromRGB(88, 190, 224));
+    voiceNameButton.setColour(juce::TextButton::textColourOnId,
+                              juce::Colour::fromRGB(110, 205, 235));
+    voiceNameButton.setTooltip("Open the categorized QY70 voice browser");
+    voiceNameButton.onClick = [this] { showVoiceMenu(); };
+    voicePreviousButton.setTooltip("Previous voice in the catalog");
+    voiceNextButton.setTooltip("Next voice in the catalog");
+    voicePreviousButton.setRepeatSpeed(400, 90, 20);
+    voiceNextButton.setRepeatSpeed(400, 90, 20);
+    voicePreviousButton.onClick = [this] { stepCatalogVoice(-1); };
+    voiceNextButton.onClick = [this] { stepCatalogVoice(1); };
+    addAndMakeVisible(voicePreviousButton);
+    addAndMakeVisible(voiceNameButton);
+    addAndMakeVisible(voiceNextButton);
 
     for (std::size_t i = 0; i < parameterIds.size(); ++i)
     {
@@ -170,8 +181,8 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
 
     steppers[1].setDiscreteValues({ 0, 64, 126, 127 });
     steppers[1].setValueChangeCallback([this] { updateVoiceChoices(true, true); });
-    steppers[2].setValueChangeCallback([this] { updateVoiceName(); });
-    steppers[3].setValueChangeCallback([this] { updateVoiceChoices(false, true); });
+    steppers[2].setValueChangeCallback([this] { updateVoiceChoices(false, true); });
+    steppers[3].setValueChangeCallback([this] { updateVoiceName(); });
     updateVoiceChoices(false, false);
 
     xgButton.setTooltip("Commanded MIDI mode; hardware confirmation is not available yet");
@@ -209,16 +220,16 @@ void QY70ControllerAudioProcessorEditor::updateVoiceChoices(bool bankChanged, bo
     const juce::ScopedValueSetter<bool> guard(updatingVoiceChoices, true);
     const auto bankMsb = juce::roundToInt(steppers[1].attachmentSlider().getValue());
     const auto programs = qy70::validProgramsForBank(bankMsb);
-    steppers[3].setDiscreteValues(std::vector<double>(programs.begin(), programs.end()));
+    steppers[2].setDiscreteValues(std::vector<double>(programs.begin(), programs.end()));
 
     if (bankChanged && !programs.empty())
-        steppers[3].attachmentSlider().setValue(programs.front(), juce::sendNotificationSync);
+        steppers[2].attachmentSlider().setValue(programs.front(), juce::sendNotificationSync);
 
-    const auto program = juce::roundToInt(steppers[3].attachmentSlider().getValue());
+    const auto program = juce::roundToInt(steppers[2].attachmentSlider().getValue());
     const auto lsbValues = qy70::validLsbValues(bankMsb, program);
-    steppers[2].setDiscreteValues(std::vector<double>(lsbValues.begin(), lsbValues.end()));
+    steppers[3].setDiscreteValues(std::vector<double>(lsbValues.begin(), lsbValues.end()));
     if (resetLsb)
-        steppers[2].attachmentSlider().setValue(0, juce::sendNotificationSync);
+        steppers[3].attachmentSlider().setValue(0, juce::sendNotificationSync);
 
     updateVoiceName();
 }
@@ -226,17 +237,111 @@ void QY70ControllerAudioProcessorEditor::updateVoiceChoices(bool bankChanged, bo
 void QY70ControllerAudioProcessorEditor::updateVoiceName()
 {
     const auto bankMsb = juce::roundToInt(steppers[1].attachmentSlider().getValue());
-    const auto bankLsb = juce::roundToInt(steppers[2].attachmentSlider().getValue());
-    const auto program = juce::roundToInt(steppers[3].attachmentSlider().getValue());
+    const auto program = juce::roundToInt(steppers[2].attachmentSlider().getValue());
+    const auto bankLsb = juce::roundToInt(steppers[3].attachmentSlider().getValue());
     const auto mode = qy70::voiceModeName(bankMsb);
     const auto voice = qy70::voiceName(bankMsb, bankLsb, program);
     const auto modeText = juce::String::fromUTF8(mode.data(), static_cast<int>(mode.size()));
     const auto voiceText = juce::String::fromUTF8(voice.data(), static_cast<int>(voice.size()));
 
-    voiceNameLabel.setText(modeText + "  ·  " + voiceText
-                               + "   (Patch " + juce::String(program)
-                               + ", Variation " + juce::String(bankLsb) + ")",
-                           juce::dontSendNotification);
+    voiceNameButton.setButtonText(modeText + "  ·  " + voiceText
+                                  + "   (Patch " + juce::String(program)
+                                  + ", Variation " + juce::String(bankLsb) + ")  ▼");
+}
+
+void QY70ControllerAudioProcessorEditor::showVoiceMenu()
+{
+    auto catalog = qy70::voiceCatalog();
+    struct CategoryMenu
+    {
+        juce::String name;
+        juce::PopupMenu menu;
+    };
+    std::vector<CategoryMenu> categories;
+
+    const auto currentMsb = juce::roundToInt(steppers[1].attachmentSlider().getValue());
+    const auto currentProgram = juce::roundToInt(steppers[2].attachmentSlider().getValue());
+    const auto currentLsb = juce::roundToInt(steppers[3].attachmentSlider().getValue());
+
+    for (std::size_t index = 0; index < catalog.size(); ++index)
+    {
+        const auto& voice = catalog[index];
+        const auto categoryName = juce::String::fromUTF8(voice.category.data(),
+                                                         static_cast<int>(voice.category.size()));
+        auto category = std::find_if(categories.begin(), categories.end(),
+                                     [&categoryName](const CategoryMenu& item)
+                                     {
+                                         return item.name == categoryName;
+                                     });
+        if (category == categories.end())
+        {
+            categories.push_back({ categoryName, {} });
+            category = std::prev(categories.end());
+        }
+
+        const auto name = juce::String::fromUTF8(voice.name.data(),
+                                                 static_cast<int>(voice.name.size()));
+        auto itemText = name + "   P" + juce::String(voice.program);
+        if (voice.bankLsb != 0)
+            itemText += " · V" + juce::String(voice.bankLsb);
+
+        const auto isCurrent = voice.bankMsb == currentMsb
+                               && voice.program == currentProgram
+                               && voice.bankLsb == currentLsb;
+        category->menu.addItem(static_cast<int>(index) + 1, itemText, true, isCurrent);
+    }
+
+    juce::PopupMenu menu;
+    for (const auto& category : categories)
+        menu.addSubMenu(category.name, category.menu);
+
+    const juce::Component::SafePointer<QY70ControllerAudioProcessorEditor> safeThis(this);
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&voiceNameButton),
+                       [safeThis, catalogCopy = std::move(catalog)](int result)
+                       {
+                           if (safeThis != nullptr && result > 0
+                               && result <= static_cast<int>(catalogCopy.size()))
+                               safeThis->selectVoice(catalogCopy[static_cast<std::size_t>(result - 1)]);
+                       });
+}
+
+void QY70ControllerAudioProcessorEditor::selectVoice(const qy70::VoiceDescriptor& voice)
+{
+    const juce::ScopedValueSetter<bool> guard(updatingVoiceChoices, true);
+    steppers[1].attachmentSlider().setValue(voice.bankMsb, juce::sendNotificationSync);
+
+    const auto programs = qy70::validProgramsForBank(voice.bankMsb);
+    steppers[2].setDiscreteValues(std::vector<double>(programs.begin(), programs.end()));
+    steppers[2].attachmentSlider().setValue(voice.program, juce::sendNotificationSync);
+
+    const auto variations = qy70::validLsbValues(voice.bankMsb, voice.program);
+    steppers[3].setDiscreteValues(std::vector<double>(variations.begin(), variations.end()));
+    steppers[3].attachmentSlider().setValue(voice.bankLsb, juce::sendNotificationSync);
+    updateVoiceName();
+}
+
+void QY70ControllerAudioProcessorEditor::stepCatalogVoice(int direction)
+{
+    const auto catalog = qy70::voiceCatalog();
+    if (catalog.empty())
+        return;
+
+    const auto currentMsb = juce::roundToInt(steppers[1].attachmentSlider().getValue());
+    const auto currentProgram = juce::roundToInt(steppers[2].attachmentSlider().getValue());
+    const auto currentLsb = juce::roundToInt(steppers[3].attachmentSlider().getValue());
+    const auto current = std::find_if(catalog.begin(), catalog.end(),
+                                      [=](const qy70::VoiceDescriptor& voice)
+                                      {
+                                          return voice.bankMsb == currentMsb
+                                                 && voice.program == currentProgram
+                                                 && voice.bankLsb == currentLsb;
+                                      });
+    const auto currentIndex = current != catalog.end()
+                                  ? static_cast<int>(std::distance(catalog.begin(), current))
+                                  : 0;
+    const auto count = static_cast<int>(catalog.size());
+    const auto nextIndex = (currentIndex + (direction < 0 ? -1 : 1) + count) % count;
+    selectVoice(catalog[static_cast<std::size_t>(nextIndex)]);
 }
 
 void QY70ControllerAudioProcessorEditor::paint(juce::Graphics& g)
@@ -270,7 +375,10 @@ void QY70ControllerAudioProcessorEditor::resized()
     }
 
     area.removeFromTop(4);
-    voiceNameLabel.setBounds(area.removeFromTop(34).reduced(100, 2));
+    auto voiceSelector = area.removeFromTop(34).reduced(100, 2);
+    voicePreviousButton.setBounds(voiceSelector.removeFromLeft(40));
+    voiceNextButton.setBounds(voiceSelector.removeFromRight(40));
+    voiceNameButton.setBounds(voiceSelector.reduced(5, 0));
     area.removeFromTop(6);
 
     constexpr int columns = 3;

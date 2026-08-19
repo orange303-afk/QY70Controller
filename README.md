@@ -44,6 +44,9 @@ for rapid selection.
 The UI calls these selectors **Voice Mode** and **XG Variation** and displays
 the selected voice name from the complete QY70 catalog: 474 XG normal
 program/variation combinations, 45 SFX voices, 18 drum kits, and two SFX kits.
+Click the voice-name field to open a browser grouped by instrument family and
+select any voice directly. The adjacent arrow buttons step through the complete
+catalog without opening the menu.
 
 ## Requirements
 

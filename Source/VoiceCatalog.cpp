@@ -582,4 +582,33 @@ std::string_view voiceName(int bankMsb, int bankLsb, int programNumber)
 
     return iterator != std::end(voices) ? iterator->name : "Unknown Voice";
 }
+
+std::string_view voiceCategory(int bankMsb, int programNumber)
+{
+    if (bankMsb == 64) return "SFX";
+    if (bankMsb == 126) return "SFX Kits";
+    if (bankMsb == 127) return "Drum Kits";
+    if (bankMsb != 0) return "Other";
+
+    constexpr std::string_view categories[] {
+        "Piano", "Chromatic Percussion", "Organ", "Guitar",
+        "Bass", "Strings", "Ensemble", "Brass",
+        "Reed", "Pipe", "Synth Lead", "Synth Pad",
+        "Synth Effects", "Ethnic", "Percussive", "Sound Effects"
+    };
+    const auto index = std::clamp((programNumber - 1) / 8, 0, 15);
+    return categories[index];
+}
+
+std::vector<VoiceDescriptor> voiceCatalog()
+{
+    std::vector<VoiceDescriptor> result;
+    result.reserve(std::size(voices));
+
+    for (const auto& voice : voices)
+        result.push_back({ voice.bankMsb, voice.program, voice.bankLsb, voice.name,
+                           voiceCategory(voice.bankMsb, voice.program) });
+
+    return result;
+}
 } // namespace qy70

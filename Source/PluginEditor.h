@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 
+#include "VoiceCatalog.h"
+
 class QY70ControllerAudioProcessor;
 
 class ParameterStepper final : public juce::Component
@@ -50,9 +52,14 @@ private:
     void refreshXgButton();
     void updateVoiceChoices(bool bankChanged, bool resetLsb);
     void updateVoiceName();
+    void showVoiceMenu();
+    void selectVoice(const qy70::VoiceDescriptor& voice);
+    void stepCatalogVoice(int direction);
 
     juce::Label title;
-    juce::Label voiceNameLabel;
+    juce::TextButton voicePreviousButton { juce::String::fromUTF8("\xe2\x97\x80") };
+    juce::TextButton voiceNameButton;
+    juce::TextButton voiceNextButton { juce::String::fromUTF8("\xe2\x96\xb6") };
     juce::TextButton xgButton { "XG OFF" };
     juce::TextButton fetchButton { "Fetch Part" };
     juce::TextButton sendButton { "Send Snapshot" };
