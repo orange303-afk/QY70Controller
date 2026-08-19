@@ -1,6 +1,55 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
+ParameterStepper::ParameterStepper()
+{
+    valueSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    valueSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    valueSlider.onValueChange = [this] { syncDisplayedValue(); };
+
+    previousButton.setTooltip("Previous value");
+    nextButton.setTooltip("Next value");
+    previousButton.setRepeatSpeed(400, 90, 20);
+    nextButton.setRepeatSpeed(400, 90, 20);
+    previousButton.onClick = [this] { stepBy(-1.0); };
+    nextButton.onClick = [this] { stepBy(1.0); };
+
+    valueLabel.setJustificationType(juce::Justification::centred);
+    valueLabel.setEditable(true, true, false);
+    valueLabel.setColour(juce::Label::backgroundColourId, juce::Colour::fromRGB(33, 40, 48));
+    valueLabel.setColour(juce::Label::outlineColourId, juce::Colours::white.withAlpha(0.45f));
+    valueLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    valueLabel.onTextChange = [this]
+    {
+        valueSlider.setValue(valueLabel.getText().getDoubleValue(), juce::sendNotificationSync);
+        syncDisplayedValue();
+    };
+
+    addAndMakeVisible(previousButton);
+    addAndMakeVisible(valueLabel);
+    addAndMakeVisible(nextButton);
+}
+
+void ParameterStepper::stepBy(double amount)
+{
+    valueSlider.setValue(valueSlider.getValue() + amount, juce::sendNotificationSync);
+}
+
+void ParameterStepper::syncDisplayedValue()
+{
+    valueLabel.setText(juce::String(juce::roundToInt(valueSlider.getValue())),
+                       juce::dontSendNotification);
+}
+
+void ParameterStepper::resized()
+{
+    auto area = getLocalBounds();
+    const auto buttonWidth = juce::jmin(38, area.getHeight());
+    previousButton.setBounds(area.removeFromLeft(buttonWidth));
+    nextButton.setBounds(area.removeFromRight(buttonWidth));
+    valueLabel.setBounds(area.reduced(5, 0));
+}
+
 QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
     QY70ControllerAudioProcessor& processorToUse)
     : AudioProcessorEditor(&processorToUse),
@@ -14,18 +63,31 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
     title.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(title);
 
-    for (std::size_t i = 0; i < sliders.size(); ++i)
+    for (std::size_t i = 0; i < parameterIds.size(); ++i)
     {
-        auto& slider = sliders[i];
         const auto parameterName = owner.parameters.getParameter(parameterIds[i])->getName(64);
+        auto& label = parameterLabels[i];
+        label.setText(parameterName, juce::dontSendNotification);
+        label.setJustificationType(juce::Justification::centred);
+        label.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.78f));
+        label.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(label);
+
+        if (i < steppers.size())
+        {
+            auto& stepper = steppers[i];
+            addAndMakeVisible(stepper);
+            attachments[i] = std::make_unique<SliderAttachment>(owner.parameters,
+                                                                parameterIds[i],
+                                                                stepper.attachmentSlider());
+            stepper.syncDisplayedValue();
+            continue;
+        }
+
+        auto& slider = knobSliders[i - steppers.size()];
         slider.setName(parameterName);
-        slider.setSliderStyle(i < 4 ? juce::Slider::LinearHorizontal
-                                    : juce::Slider::RotaryHorizontalVerticalDrag);
-        slider.setTextBoxStyle(i < 4 ? juce::Slider::TextBoxRight
-                                     : juce::Slider::TextBoxBelow,
-                               false,
-                               64,
-                               22);
+        slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+        slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 64, 22);
         slider.setDoubleClickReturnValue(true,
                                          owner.parameters.getParameterRange(parameterIds[i])
                                              .convertFrom0to1(
@@ -35,13 +97,6 @@ QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
         attachments[i] = std::make_unique<SliderAttachment>(owner.parameters,
                                                             parameterIds[i],
                                                             slider);
-
-        auto& label = parameterLabels[i];
-        label.setText(parameterName, juce::dontSendNotification);
-        label.setJustificationType(juce::Justification::centred);
-        label.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.78f));
-        label.setInterceptsMouseClicks(false, false);
-        addAndMakeVisible(label);
     }
 
     fetchButton.onClick = [this] { owner.requestCurrentPart(); };
@@ -80,7 +135,7 @@ void QY70ControllerAudioProcessorEditor::resized()
                                 .withWidth(selectorWidth)
                                 .reduced(8, 0);
         parameterLabels[i].setBounds(cell.removeFromTop(24));
-        sliders[i].setBounds(cell.reduced(4, 5));
+        steppers[i].setBounds(cell.reduced(4, 7));
     }
 
     area.removeFromTop(10);
@@ -90,7 +145,7 @@ void QY70ControllerAudioProcessorEditor::resized()
     const auto cellWidth = area.getWidth() / columns;
     const auto cellHeight = area.getHeight() / rows;
 
-    for (std::size_t i = 4; i < sliders.size(); ++i)
+    for (std::size_t i = 4; i < parameterIds.size(); ++i)
     {
         const auto cellIndex = static_cast<int>(i - 4);
         auto cell = juce::Rectangle<int>(area.getX() + (cellIndex % columns) * cellWidth,
@@ -99,6 +154,6 @@ void QY70ControllerAudioProcessorEditor::resized()
                                          cellHeight)
                         .reduced(10, 2);
         parameterLabels[i].setBounds(cell.removeFromTop(25));
-        sliders[i].setBounds(cell.reduced(6, 0));
+        knobSliders[i - steppers.size()].setBounds(cell.reduced(6, 0));
     }
 }

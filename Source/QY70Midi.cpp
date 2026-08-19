@@ -45,6 +45,28 @@ juce::MidiMessage makeMultiPartParameterChange(int partNumber,
     return makeXgParameterChange(deviceNumber, address, { sevenBit(value) });
 }
 
+std::vector<juce::MidiMessage> makeMultiPartVoiceSelection(int partNumber,
+                                                           int bankMsb,
+                                                           int bankLsb,
+                                                           int programNumber,
+                                                           std::uint8_t deviceNumber)
+{
+    return {
+        makeMultiPartParameterChange(partNumber,
+                                     MultiPartParameter::bankMsb,
+                                     bankMsb,
+                                     deviceNumber),
+        makeMultiPartParameterChange(partNumber,
+                                     MultiPartParameter::bankLsb,
+                                     bankLsb,
+                                     deviceNumber),
+        makeMultiPartParameterChange(partNumber,
+                                     MultiPartParameter::program,
+                                     std::clamp(programNumber, 1, 128) - 1,
+                                     deviceNumber)
+    };
+}
+
 juce::MidiMessage makeXgParameterRequest(std::uint8_t deviceNumber,
                                          const std::array<std::uint8_t, 3>& address)
 {

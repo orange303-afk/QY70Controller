@@ -22,6 +22,10 @@ This is an early development build. MIDI is emitted through the host output;
 bidirectional response parsing and direct physical MIDI-port selection are not
 implemented yet.
 
+Part, bank and patch selectors use discrete previous/next buttons. Changing
+either bank value re-sends Bank MSB, Bank LSB and Program in that order so the
+QY70 applies the selected XG variation bank immediately.
+
 ## Requirements
 
 - macOS or Windows development environment

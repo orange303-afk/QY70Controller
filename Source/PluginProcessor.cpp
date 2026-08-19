@@ -95,9 +95,10 @@ void QY70ControllerAudioProcessor::parameterChanged(const juce::String& paramete
     std::uint32_t bit = 0;
 
     if (parameterID == ids::part) bit = snapshotDirty;
-    else if (parameterID == ids::bankMsb) bit = bankMsbDirty;
-    else if (parameterID == ids::bankLsb) bit = bankLsbDirty;
-    else if (parameterID == ids::program) bit = programDirty;
+    else if (parameterID == ids::bankMsb
+             || parameterID == ids::bankLsb
+             || parameterID == ids::program)
+        bit = bankMsbDirty | bankLsbDirty | programDirty;
     else if (parameterID == ids::volume) bit = volumeDirty;
     else if (parameterID == ids::pan) bit = panDirty;
     else if (parameterID == ids::cutoff) bit = cutoffDirty;
@@ -143,9 +144,16 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
             midiMessages.addEvent(qy70::makeMultiPartParameterChange(part, parameter, value), 0);
     };
 
-    add(bankMsbDirty, pending, qy70::MultiPartParameter::bankMsb, parameterValue(ids::bankMsb));
-    add(bankLsbDirty, pending, qy70::MultiPartParameter::bankLsb, parameterValue(ids::bankLsb));
-    add(programDirty, pending, qy70::MultiPartParameter::program, parameterValue(ids::program) - 1);
+    constexpr auto voiceSelectionBits = bankMsbDirty | bankLsbDirty | programDirty;
+    if ((pending & voiceSelectionBits) != 0)
+    {
+        for (const auto& message : qy70::makeMultiPartVoiceSelection(part,
+                                                                     parameterValue(ids::bankMsb),
+                                                                     parameterValue(ids::bankLsb),
+                                                                     parameterValue(ids::program)))
+            midiMessages.addEvent(message, 0);
+    }
+
     add(volumeDirty, pending, qy70::MultiPartParameter::volume, parameterValue(ids::volume));
     add(panDirty, pending, qy70::MultiPartParameter::pan, parameterValue(ids::pan));
     add(cutoffDirty, pending, qy70::MultiPartParameter::filterCutoff, parameterValue(ids::cutoff));

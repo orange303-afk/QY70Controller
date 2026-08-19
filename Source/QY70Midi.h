@@ -42,6 +42,12 @@ juce::MidiMessage makeMultiPartParameterChange(int partNumber,
                                                int value,
                                                std::uint8_t deviceNumber = 0);
 
+std::vector<juce::MidiMessage> makeMultiPartVoiceSelection(int partNumber,
+                                                           int bankMsb,
+                                                           int bankLsb,
+                                                           int programNumber,
+                                                           std::uint8_t deviceNumber = 0);
+
 juce::MidiMessage makeXgParameterRequest(std::uint8_t deviceNumber,
                                          const std::array<std::uint8_t, 3>& address);
 
