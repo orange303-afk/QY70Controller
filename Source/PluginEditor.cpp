@@ -1221,12 +1221,9 @@ void QY70ControllerAudioProcessorEditor::showVoiceMenu()
     // Apply LCD color scheme to the popup menu
     menu.setLookAndFeel(&hardwareLAF);
 
-    // Open at cursor position, not at button corner
-    const auto mousePos = juce::Desktop::getInstance().getMainMouseSource().getScreenPosition();
-    const auto targetArea = juce::Rectangle<int>(mousePos.roundToInt(), juce::Point<int>(0,0))
-                                .withSizeKeepingCentre(1, 1);
+    // Open directly under the voiceNameButton field
     menu.showMenuAsync(juce::PopupMenu::Options()
-                           .withTargetScreenArea(targetArea)
+                           .withTargetComponent(&voiceNameButton)
                            .withPreferredPopupDirection(juce::PopupMenu::Options::PopupDirection::downwards),
                        [safeThis, catalogCopy = std::move(catalog)](int result)
                        {
