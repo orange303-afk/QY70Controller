@@ -4,6 +4,9 @@ A modern MIDI editor/controller for the Yamaha QY70 music sequencer and XG tone
 generator. The project currently builds as VST3, Audio Unit and standalone using
 JUCE 8 and CMake.
 
+<img width="1166" height="873" alt="image" src="https://github.com/user-attachments/assets/bfc7ec3c-376b-4284-8922-09c6c6410a0c" />
+
+
 ## Current status
 
 The first vertical slice translates DAW-automatable controls into Yamaha XG
