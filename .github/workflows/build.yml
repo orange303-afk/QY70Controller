@@ -1,0 +1,112 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows (VST3 & Standalone)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DQY70_LAUNCH_STANDALONE_AFTER_BUILD=OFF -DQY70_BUILD_TESTS=OFF
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Package Windows Artifacts
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path release_win
+          Copy-Item -Path "build\QY70Controller_artefacts\Release\Standalone\QY70 Controller.exe" -Destination "release_win\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "build\QY70Controller_artefacts\Release\VST3\QY70 Controller.vst3" -Destination "release_win\QY70 Controller.vst3" -Recurse -ErrorAction SilentlyContinue
+          Compress-Archive -Path release_win\* -DestinationPath QY70Controller-v0.1-Windows.zip
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QY70Controller-v0.1-Windows
+          path: QY70Controller-v0.1-Windows.zip
+
+  build-macos:
+    name: Build macOS Universal (VST3, AU, Standalone)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure CMake (Universal arm64 + x86_64)
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DQY70_LAUNCH_STANDALONE_AFTER_BUILD=OFF \
+            -DQY70_BUILD_TESTS=OFF
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Package macOS Artifacts
+        run: |
+          mkdir -p release_mac
+          cp -R "build/QY70Controller_artefacts/Release/Standalone/QY70 Controller.app" release_mac/ 2>/dev/null || true
+          cp -R "build/QY70Controller_artefacts/Release/VST3/QY70 Controller.vst3" release_mac/ 2>/dev/null || true
+          cp -R "build/QY70Controller_artefacts/Release/AU/QY70 Controller.component" release_mac/ 2>/dev/null || true
+          cd release_mac && zip -r ../QY70Controller-v0.1-macOS-Universal.zip *
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QY70Controller-v0.1-macOS-Universal
+          path: QY70Controller-v0.1-macOS-Universal.zip
+
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: QY70Controller-v0.1-Windows
+
+      - name: Download macOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: QY70Controller-v0.1-macOS-Universal
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Yamaha QY70 Controller v0.1
+          body: |
+            ## Yamaha QY70 Controller v0.1 Release
+            by Ilya Orange
+
+            - Universal macOS Binary (Apple Silicon arm64 + Intel x86_64): Standalone, VST3, AU
+            - Windows 64-bit Binary: Standalone, VST3
+            - Full 16-part multi-timbral MIDI editing & state recall
+            - Complete XG voice catalog browser & skeuomorphic UI
+          files: |
+            QY70Controller-v0.1-Windows.zip
+            QY70Controller-v0.1-macOS-Universal.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
