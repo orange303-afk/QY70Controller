@@ -61,38 +61,6 @@ private:
     std::function<void()> valueChangeCallback;
 };
 
-class SequencerPage final : public juce::Component
-{
-public:
-    explicit SequencerPage(QY70ControllerAudioProcessor& processor);
-    void resized() override;
-    void refresh();
-
-private:
-    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-
-    void selectTrack(int track);
-    void loadTrackSettings();
-
-    QY70ControllerAudioProcessor& owner;
-    juce::Label recordHint;
-    juce::TextButton startButton { "START / REC" };
-    juce::TextButton continueButton { "CONTINUE" };
-    juce::TextButton stopButton { "STOP" };
-    juce::Label patternLabel;
-    ParameterStepper patternStepper;
-    std::array<juce::TextButton, 7> sectionButtons;
-    std::array<juce::TextButton, 8> trackButtons;
-    std::array<juce::TextButton, 16> stepButtons;
-    std::array<juce::Slider, 3> timingSliders;
-    std::array<juce::Label, 3> timingLabels;
-    std::array<std::unique_ptr<SliderAttachment>, 3> timingAttachments;
-    std::array<juce::Slider, 4> trackSliders;
-    std::array<juce::Label, 4> trackLabels;
-    int selectedTrack = 0;
-    bool loadingTrack = false;
-};
-
 class QY70ControllerAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                                   private juce::Timer
 {
@@ -133,8 +101,6 @@ private:
     std::unique_ptr<ParameterPage> reverbPage;
     std::unique_ptr<ParameterPage> chorusPage;
     std::unique_ptr<ParameterPage> variationPage;
-    std::unique_ptr<SequencerPage> sequencerPage;
-
     std::array<ParameterStepper, 4> steppers;
     std::array<juce::Slider, 9> knobSliders;
     std::array<juce::Label, 13> parameterLabels;

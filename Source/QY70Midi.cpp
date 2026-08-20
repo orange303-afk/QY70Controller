@@ -231,44 +231,6 @@ std::array<std::string_view, 16> effectParameterNames(EffectBlock block,
     return unused;
 }
 
-juce::MidiMessage makeTransportStart()
-{
-    return juce::MidiMessage::midiStart();
-}
-
-juce::MidiMessage makeTransportContinue()
-{
-    return juce::MidiMessage::midiContinue();
-}
-
-juce::MidiMessage makeTransportStop()
-{
-    return juce::MidiMessage::midiStop();
-}
-
-juce::MidiMessage makeTimingClock()
-{
-    return juce::MidiMessage::midiClock();
-}
-
-juce::MidiMessage makeSongSelect(int patternNumber)
-{
-    return juce::MidiMessage(0xF3, std::clamp(patternNumber, 1, 64) - 1);
-}
-
-juce::MidiMessage makeSectionControl(PatternSection section, bool enabled)
-{
-    const std::array<std::uint8_t, 5> payload {
-        0x43,
-        0x7E,
-        0x00,
-        static_cast<std::uint8_t>(section),
-        static_cast<std::uint8_t>(enabled ? 1 : 0)
-    };
-    return juce::MidiMessage::createSysExMessage(payload.data(),
-                                                 static_cast<int>(payload.size()));
-}
-
 std::vector<juce::MidiMessage> makeChannelVoiceSelection(int midiChannel,
                                                          int bankMsb,
                                                          int bankLsb,

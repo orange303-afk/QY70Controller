@@ -59,9 +59,6 @@ constexpr auto pitchEgInitial = "pitchEgInitial";
 constexpr auto pitchEgAttack = "pitchEgAttack";
 constexpr auto pitchEgReleaseLevel = "pitchEgReleaseLevel";
 constexpr auto pitchEgReleaseTime = "pitchEgReleaseTime";
-constexpr auto sequencerTempo = "sequencerTempo";
-constexpr auto sequencerLength = "sequencerLength";
-constexpr auto sequencerSwing = "sequencerSwing";
 } // namespace ids
 
 namespace
@@ -235,9 +232,6 @@ std::uint64_t maskForCount(std::size_t count)
                        : (std::uint64_t { 1 } << count) - 1;
 }
 
-constexpr std::uint32_t sequencerStartCommand = 1u << 0;
-constexpr std::uint32_t sequencerContinueCommand = 1u << 1;
-constexpr std::uint32_t sequencerStopCommand = 1u << 2;
 } // namespace
 
 QY70ControllerAudioProcessor::QY70ControllerAudioProcessor()
@@ -246,25 +240,6 @@ QY70ControllerAudioProcessor::QY70ControllerAudioProcessor()
 {
     for (auto& mask : effectDirtyMasks)
         mask.store(0, std::memory_order_relaxed);
-    for (auto& step : sequenceSteps)
-        step.store(0, std::memory_order_relaxed);
-    constexpr std::array<int, sequencerTrackCount> defaultNotes {
-        36, 38, 42, 46, 48, 50, 55, 60
-    };
-    for (int track = 0; track < sequencerTrackCount; ++track)
-    {
-        sequenceNotes[static_cast<std::size_t>(track)].store(
-            defaultNotes[static_cast<std::size_t>(track)], std::memory_order_relaxed);
-        sequenceVelocities[static_cast<std::size_t>(track)].store(100,
-                                                                 std::memory_order_relaxed);
-        sequenceChannels[static_cast<std::size_t>(track)].store(track + 1,
-                                                                std::memory_order_relaxed);
-        sequenceGates[static_cast<std::size_t>(track)].store(80,
-                                                             std::memory_order_relaxed);
-        activeSequenceNotes[static_cast<std::size_t>(track)] = -1;
-        activeSequenceChannels[static_cast<std::size_t>(track)] = track + 1;
-        noteOffSamplesRemaining[static_cast<std::size_t>(track)] = 0.0;
-    }
     for (const auto& id : allParameterIds()) parameters.addParameterListener(id, this);
 }
 
@@ -277,7 +252,6 @@ void QY70ControllerAudioProcessor::prepareToPlay(double sampleRate, int)
 {
     currentSampleRate = sampleRate > 0.0 ? sampleRate : 44100.0;
     xgWaitSamples = 0;
-    samplesUntilNextClock = 0.0;
 }
 
 void QY70ControllerAudioProcessor::releaseResources() {}
@@ -291,7 +265,6 @@ void QY70ControllerAudioProcessor::processBlock(juce::AudioBuffer<float>& audio,
     audio.clear();
     remapInputToSelectedPart(midiMessages);
     emitPendingMessages(midiMessages, audio.getNumSamples());
-    emitSequencerMessages(midiMessages, audio.getNumSamples());
 }
 
 juce::AudioProcessorEditor* QY70ControllerAudioProcessor::createEditor()
@@ -301,22 +274,7 @@ juce::AudioProcessorEditor* QY70ControllerAudioProcessor::createEditor()
 
 void QY70ControllerAudioProcessor::getStateInformation(juce::MemoryBlock& destinationData)
 {
-    auto state = parameters.copyState();
-    juce::ValueTree sequenceState("SEQUENCER");
-    juce::String steps;
-    steps.preallocateBytes(sequencerTrackCount * sequencerStepCount);
-    for (int track = 0; track < sequencerTrackCount; ++track)
-    {
-        sequenceState.setProperty("note" + juce::String(track), trackNote(track), nullptr);
-        sequenceState.setProperty("velocity" + juce::String(track), trackVelocity(track), nullptr);
-        sequenceState.setProperty("channel" + juce::String(track), trackChannel(track), nullptr);
-        sequenceState.setProperty("gate" + juce::String(track), trackGate(track), nullptr);
-        for (int step = 0; step < sequencerStepCount; ++step)
-            steps += isStepEnabled(track, step) ? '1' : '0';
-    }
-    sequenceState.setProperty("steps", steps, nullptr);
-    state.addChild(sequenceState, -1, nullptr);
-    if (auto xml = state.createXml())
+    if (auto xml = parameters.copyState().createXml())
         copyXmlToBinary(*xml, destinationData);
 }
 
@@ -326,28 +284,6 @@ void QY70ControllerAudioProcessor::setStateInformation(const void* data, int siz
         if (xml->hasTagName(parameters.state.getType()))
             parameters.replaceState(juce::ValueTree::fromXml(*xml));
 
-    const auto sequenceState = parameters.state.getChildWithName("SEQUENCER");
-    if (sequenceState.isValid())
-    {
-        const auto steps = sequenceState.getProperty("steps").toString();
-        for (int track = 0; track < sequencerTrackCount; ++track)
-        {
-            setTrackNote(track, static_cast<int>(sequenceState.getProperty(
-                                     "note" + juce::String(track), trackNote(track))));
-            setTrackVelocity(track, static_cast<int>(sequenceState.getProperty(
-                                         "velocity" + juce::String(track), trackVelocity(track))));
-            setTrackChannel(track, static_cast<int>(sequenceState.getProperty(
-                                        "channel" + juce::String(track), trackChannel(track))));
-            setTrackGate(track, static_cast<int>(sequenceState.getProperty(
-                                     "gate" + juce::String(track), trackGate(track))));
-            for (int step = 0; step < sequencerStepCount; ++step)
-            {
-                const auto index = track * sequencerStepCount + step;
-                if (index < steps.length())
-                    setStepEnabled(track, step, steps[index] == '1');
-            }
-        }
-    }
     dirtyMask.fetch_or(snapshotDirty, std::memory_order_release);
     effectSnapshotDirty.store(true, std::memory_order_release);
 }
@@ -391,113 +327,6 @@ void QY70ControllerAudioProcessor::setXgModeEnabled(bool shouldBeEnabled)
     xgModeEnabled.store(shouldBeEnabled, std::memory_order_release);
     dirtyMask.fetch_or(shouldBeEnabled ? xgSystemOnDirty : gmSystemOnDirty,
                        std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::startSequencer(bool restartFromBeginning)
-{
-    sequencerCommands.fetch_or(restartFromBeginning ? sequencerStartCommand
-                                                     : sequencerContinueCommand,
-                               std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::continueSequencer()
-{
-    sequencerCommands.fetch_or(sequencerContinueCommand, std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::stopSequencer()
-{
-    sequencerCommands.fetch_or(sequencerStopCommand, std::memory_order_release);
-}
-
-bool QY70ControllerAudioProcessor::isSequencerRunning() const
-{
-    return sequencerRunningState.load(std::memory_order_acquire);
-}
-
-int QY70ControllerAudioProcessor::currentSequencerStep() const
-{
-    return displayedSequencerStep.load(std::memory_order_acquire);
-}
-
-bool QY70ControllerAudioProcessor::isStepEnabled(int track, int step) const
-{
-    track = juce::jlimit(0, sequencerTrackCount - 1, track);
-    step = juce::jlimit(0, sequencerStepCount - 1, step);
-    return sequenceSteps[static_cast<std::size_t>(track * sequencerStepCount + step)]
-               .load(std::memory_order_acquire) != 0;
-}
-
-void QY70ControllerAudioProcessor::setStepEnabled(int track, int step, bool enabled)
-{
-    if (!juce::isPositiveAndBelow(track, sequencerTrackCount)
-        || !juce::isPositiveAndBelow(step, sequencerStepCount))
-        return;
-    sequenceSteps[static_cast<std::size_t>(track * sequencerStepCount + step)]
-        .store(enabled ? 1 : 0, std::memory_order_release);
-}
-
-int QY70ControllerAudioProcessor::trackNote(int track) const
-{
-    return sequenceNotes[static_cast<std::size_t>(
-        juce::jlimit(0, sequencerTrackCount - 1, track))].load(std::memory_order_acquire);
-}
-
-int QY70ControllerAudioProcessor::trackVelocity(int track) const
-{
-    return sequenceVelocities[static_cast<std::size_t>(
-        juce::jlimit(0, sequencerTrackCount - 1, track))].load(std::memory_order_acquire);
-}
-
-int QY70ControllerAudioProcessor::trackChannel(int track) const
-{
-    return sequenceChannels[static_cast<std::size_t>(
-        juce::jlimit(0, sequencerTrackCount - 1, track))].load(std::memory_order_acquire);
-}
-
-int QY70ControllerAudioProcessor::trackGate(int track) const
-{
-    return sequenceGates[static_cast<std::size_t>(
-        juce::jlimit(0, sequencerTrackCount - 1, track))].load(std::memory_order_acquire);
-}
-
-void QY70ControllerAudioProcessor::setTrackNote(int track, int value)
-{
-    if (juce::isPositiveAndBelow(track, sequencerTrackCount))
-        sequenceNotes[static_cast<std::size_t>(track)].store(juce::jlimit(0, 127, value),
-                                                            std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::setTrackVelocity(int track, int value)
-{
-    if (juce::isPositiveAndBelow(track, sequencerTrackCount))
-        sequenceVelocities[static_cast<std::size_t>(track)].store(
-            juce::jlimit(1, 127, value), std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::setTrackChannel(int track, int value)
-{
-    if (juce::isPositiveAndBelow(track, sequencerTrackCount))
-        sequenceChannels[static_cast<std::size_t>(track)].store(
-            juce::jlimit(1, 16, value), std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::setTrackGate(int track, int value)
-{
-    if (juce::isPositiveAndBelow(track, sequencerTrackCount))
-        sequenceGates[static_cast<std::size_t>(track)].store(
-            juce::jlimit(1, 100, value), std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::selectPattern(int patternNumber)
-{
-    pendingPatternSelection.store(juce::jlimit(1, 64, patternNumber),
-                                  std::memory_order_release);
-}
-
-void QY70ControllerAudioProcessor::selectSection(qy70::PatternSection section)
-{
-    pendingSectionSelection.store(static_cast<int>(section), std::memory_order_release);
 }
 
 void QY70ControllerAudioProcessor::parameterChanged(const juce::String& parameterID, float)
@@ -714,154 +543,6 @@ void QY70ControllerAudioProcessor::emitPendingMessages(juce::MidiBuffer& midiMes
     }
 }
 
-void QY70ControllerAudioProcessor::stopActiveSequencerNotes(juce::MidiBuffer& midiMessages,
-                                                            int sampleOffset)
-{
-    for (int track = 0; track < sequencerTrackCount; ++track)
-    {
-        const auto index = static_cast<std::size_t>(track);
-        if (activeSequenceNotes[index] >= 0)
-            midiMessages.addEvent(juce::MidiMessage::noteOff(activeSequenceChannels[index],
-                                                             activeSequenceNotes[index]),
-                                  sampleOffset);
-        activeSequenceNotes[index] = -1;
-        noteOffSamplesRemaining[index] = 0.0;
-    }
-}
-
-void QY70ControllerAudioProcessor::emitSequencerMessages(juce::MidiBuffer& midiMessages,
-                                                         int blockSize)
-{
-    const auto lastSample = juce::jmax(0, blockSize - 1);
-    const auto pattern = pendingPatternSelection.exchange(-1, std::memory_order_acq_rel);
-    if (pattern > 0)
-        midiMessages.addEvent(qy70::makeSongSelect(pattern), 0);
-
-    const auto section = pendingSectionSelection.exchange(-1, std::memory_order_acq_rel);
-    if (section >= static_cast<int>(qy70::PatternSection::intro)
-        && section <= static_cast<int>(qy70::PatternSection::blank))
-        midiMessages.addEvent(qy70::makeSectionControl(
-                                  static_cast<qy70::PatternSection>(section)), 0);
-
-    const auto commands = sequencerCommands.exchange(0, std::memory_order_acq_rel);
-    if ((commands & sequencerStopCommand) != 0)
-    {
-        midiMessages.addEvent(qy70::makeTransportStop(), 0);
-        stopActiveSequencerNotes(midiMessages, 0);
-        audioSequencerRunning = false;
-        sequencerRunningState.store(false, std::memory_order_release);
-        displayedSequencerStep.store(-1, std::memory_order_release);
-    }
-    else if ((commands & sequencerStartCommand) != 0)
-    {
-        stopActiveSequencerNotes(midiMessages, 0);
-        midiMessages.addEvent(qy70::makeTransportStart(), 0);
-        audioSequencerRunning = true;
-        audioSequencerStep = 0;
-        clocksIntoStep = 0;
-        samplesUntilNextClock = 0.0;
-        sequencerRunningState.store(true, std::memory_order_release);
-    }
-    else if ((commands & sequencerContinueCommand) != 0)
-    {
-        midiMessages.addEvent(qy70::makeTransportContinue(), 0);
-        audioSequencerRunning = true;
-        samplesUntilNextClock = 0.0;
-        sequencerRunningState.store(true, std::memory_order_release);
-    }
-
-    if (!audioSequencerRunning || blockSize <= 0)
-        return;
-
-    for (int track = 0; track < sequencerTrackCount; ++track)
-    {
-        const auto index = static_cast<std::size_t>(track);
-        if (activeSequenceNotes[index] < 0)
-            continue;
-        if (noteOffSamplesRemaining[index] <= static_cast<double>(lastSample))
-        {
-            const auto offset = juce::jlimit(0, lastSample,
-                                             juce::roundToInt(noteOffSamplesRemaining[index]));
-            midiMessages.addEvent(juce::MidiMessage::noteOff(activeSequenceChannels[index],
-                                                             activeSequenceNotes[index]),
-                                  offset);
-            activeSequenceNotes[index] = -1;
-            noteOffSamplesRemaining[index] = 0.0;
-        }
-        else
-        {
-            noteOffSamplesRemaining[index] -= static_cast<double>(blockSize);
-        }
-    }
-
-    const auto tempo = juce::jlimit(30, 300, parameterValue(ids::sequencerTempo));
-    const auto length = juce::jlimit(1, sequencerStepCount,
-                                     parameterValue(ids::sequencerLength));
-    const auto swing = juce::jlimit(50, 75, parameterValue(ids::sequencerSwing)) / 100.0;
-    const auto straightStepSamples = currentSampleRate * 60.0
-                                     / static_cast<double>(tempo) / 4.0;
-
-    auto clockOffset = samplesUntilNextClock;
-    while (clockOffset < static_cast<double>(blockSize))
-    {
-        const auto sampleOffset = juce::jlimit(0, lastSample, juce::roundToInt(clockOffset));
-        midiMessages.addEvent(qy70::makeTimingClock(), sampleOffset);
-
-        if (clocksIntoStep == 0)
-        {
-            displayedSequencerStep.store(audioSequencerStep, std::memory_order_release);
-            const auto stepDuration = straightStepSamples * 2.0
-                                      * ((audioSequencerStep & 1) == 0 ? swing
-                                                                      : 1.0 - swing);
-            for (int track = 0; track < sequencerTrackCount; ++track)
-            {
-                if (!isStepEnabled(track, audioSequencerStep))
-                    continue;
-                const auto index = static_cast<std::size_t>(track);
-                if (activeSequenceNotes[index] >= 0)
-                    midiMessages.addEvent(juce::MidiMessage::noteOff(activeSequenceChannels[index],
-                                                                     activeSequenceNotes[index]),
-                                          sampleOffset);
-
-                const auto note = trackNote(track);
-                const auto channel = trackChannel(track);
-                midiMessages.addEvent(juce::MidiMessage::noteOn(
-                                          channel, note,
-                                          static_cast<juce::uint8>(trackVelocity(track))),
-                                      sampleOffset);
-                const auto gateSamples = stepDuration * trackGate(track) / 100.0;
-                const auto offFromBlockStart = clockOffset + gateSamples;
-                if (offFromBlockStart <= static_cast<double>(lastSample))
-                {
-                    midiMessages.addEvent(juce::MidiMessage::noteOff(channel, note),
-                                          juce::jlimit(0, lastSample,
-                                                       juce::roundToInt(offFromBlockStart)));
-                    activeSequenceNotes[index] = -1;
-                    noteOffSamplesRemaining[index] = 0.0;
-                }
-                else
-                {
-                    activeSequenceNotes[index] = note;
-                    activeSequenceChannels[index] = channel;
-                    noteOffSamplesRemaining[index] = offFromBlockStart - blockSize;
-                }
-            }
-        }
-
-        const auto stepForInterval = audioSequencerStep;
-        ++clocksIntoStep;
-        if (clocksIntoStep >= 6)
-        {
-            clocksIntoStep = 0;
-            audioSequencerStep = (audioSequencerStep + 1) % length;
-        }
-        const auto stepDuration = straightStepSamples * 2.0
-                                  * ((stepForInterval & 1) == 0 ? swing : 1.0 - swing);
-        clockOffset += stepDuration / 6.0;
-    }
-    samplesUntilNextClock = clockOffset - blockSize;
-}
-
 juce::AudioProcessorValueTreeState::ParameterLayout
 QY70ControllerAudioProcessor::createParameterLayout()
 {
@@ -930,10 +611,6 @@ QY70ControllerAudioProcessor::createParameterLayout()
     addInt(ids::pitchEgAttack, "Pitch EG Attack Time", -64, 63, 0);
     addInt(ids::pitchEgReleaseLevel, "Pitch EG Release Level", -64, 63, 0);
     addInt(ids::pitchEgReleaseTime, "Pitch EG Release Time", -64, 63, 0);
-    addInt(ids::sequencerTempo, "Sequencer Tempo", 30, 300, 120);
-    addInt(ids::sequencerLength, "Pattern Length", 1, sequencerStepCount, 16);
-    addInt(ids::sequencerSwing, "Swing", 50, 75, 50);
-
     for (const auto& binding : effectBindings())
     {
         if (binding.encoding == EffectEncoding::type)

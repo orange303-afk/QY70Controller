@@ -22,10 +22,6 @@ Multi Part SysEx:
 - Portamento and the four-stage Pitch EG controls;
 - global Reverb, Chorus and Variation/Delay algorithms, returns, routing and
   all 16 algorithm parameters;
-- an eight-track, 16-step MIDI sequencer with per-track note, velocity, channel
-  and gate controls;
-- MIDI Start, Continue, Stop, 24 PPQN Clock, QY70 pattern selection and section
-  switching (Intro, Main A/B, fills, Ending and Blank);
 - parameter requests and complete part snapshots;
 - byte-level protocol tests.
 
@@ -69,24 +65,6 @@ yet been mapped to a display name.
 **Reset Edits** keeps the selected Part and voice, sends XG System On to restore
 the QY70 effect engine to its factory state, and resets tone, filter, envelopes,
 controllers, portamento, sends and plug-in effect controls to their defaults.
-
-## Pattern sequencer
-
-The Sequencer tab contains eight MIDI tracks and 16 steps. Tempo, pattern
-length and swing are stored with the DAW project together with the step grid
-and each track's note, velocity, MIDI channel and gate percentage.
-
-**START / REC** sends MIDI Start, begins 24 PPQN MIDI Clock and starts the local
-step sequencer. To record the generated notes into the QY70, first put the QY70
-in Pattern Record Standby and configure it to follow external MIDI clock. The
-QY70 protocol does not provide a documented command for remotely entering
-Record Standby or choosing the record track. **CONTINUE** resumes from the
-current local step and **STOP** sends MIDI Stop and releases active notes.
-
-The QY70 Pattern selector sends Song Select for user patterns 1-64. Section
-buttons send Yamaha Section Control SysEx for Intro, Main A, Main B, Fill AB,
-Fill BA, Ending and Blank. Direct download/edit/upload of the QY70's proprietary
-internal pattern event format is a separate future milestone.
 
 ## Requirements
 

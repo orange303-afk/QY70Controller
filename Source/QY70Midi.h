@@ -71,17 +71,6 @@ enum class EffectBlock
     variation
 };
 
-enum class PatternSection : std::uint8_t
-{
-    intro = 0x08,
-    mainA = 0x09,
-    mainB = 0x0A,
-    fillAB = 0x0B,
-    fillBA = 0x0C,
-    ending = 0x0D,
-    blank = 0x0E
-};
-
 struct EffectTypeDescriptor
 {
     std::string_view name;
@@ -115,13 +104,6 @@ std::vector<std::uint8_t> encode14Bit(int value);
 const std::vector<EffectTypeDescriptor>& effectTypes(EffectBlock block);
 std::array<std::string_view, 16> effectParameterNames(EffectBlock block,
                                                      int typeIndex);
-
-juce::MidiMessage makeTransportStart();
-juce::MidiMessage makeTransportContinue();
-juce::MidiMessage makeTransportStop();
-juce::MidiMessage makeTimingClock();
-juce::MidiMessage makeSongSelect(int patternNumber);
-juce::MidiMessage makeSectionControl(PatternSection section, bool enabled = true);
 
 std::vector<juce::MidiMessage> makeChannelVoiceSelection(int midiChannel,
                                                          int bankMsb,

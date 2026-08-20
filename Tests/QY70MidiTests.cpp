@@ -80,16 +80,6 @@ int main()
     passed &= qy70::effectParameterNames(qy70::EffectBlock::variation, 9)[0]
               == "Left Delay";
 
-    passed &= expectRaw(qy70::makeTransportStart(), { 0xFA }, "MIDI Start");
-    passed &= expectRaw(qy70::makeTransportContinue(), { 0xFB }, "MIDI Continue");
-    passed &= expectRaw(qy70::makeTransportStop(), { 0xFC }, "MIDI Stop");
-    passed &= expectRaw(qy70::makeTimingClock(), { 0xF8 }, "MIDI Clock");
-    passed &= expectRaw(qy70::makeSongSelect(64), { 0xF3, 0x3F },
-                        "QY70 user pattern 64 select");
-    passed &= expectRaw(qy70::makeSectionControl(qy70::PatternSection::mainA),
-                        { 0xF0, 0x43, 0x7E, 0x00, 0x09, 0x01, 0xF7 },
-                        "QY70 Main A section control");
-
     passed &= expectRaw(qy70::makeXgSystemOn(),
                         { 0xF0, 0x43, 0x10, 0x4C, 0x00, 0x00, 0x7E, 0x00, 0xF7 },
                         "XG System On");

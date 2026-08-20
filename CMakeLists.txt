@@ -84,21 +84,4 @@ if (QY70_BUILD_TESTS)
         juce::juce_recommended_warning_flags)
 
     add_test(NAME QY70ProtocolTests COMMAND QY70ProtocolTests)
-
-    add_executable(QY70SequencerTests)
-
-    target_sources(QY70SequencerTests PRIVATE
-        Tests/QY70SequencerTests.cpp)
-
-    target_include_directories(QY70SequencerTests PRIVATE
-        "${CMAKE_CURRENT_BINARY_DIR}/QY70Controller_artefacts/JuceLibraryCode")
-
-    target_link_libraries(QY70SequencerTests PRIVATE
-        QY70Controller
-        juce::juce_audio_utils
-        PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_warning_flags)
-
-    add_test(NAME QY70SequencerTests COMMAND QY70SequencerTests)
 endif()
