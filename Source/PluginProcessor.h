@@ -25,7 +25,7 @@ public:
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return true; }
-    bool isMidiEffect() const override { return true; }
+    bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
     int getNumPrograms() override { return 1; }
@@ -44,6 +44,9 @@ public:
     void resetEditingParameters();
     void setXgModeEnabled(bool shouldBeEnabled);
     bool isXgModeEnabled() const { return xgModeEnabled.load(std::memory_order_acquire); }
+
+    void setHardwareMidiOutputDevice(const juce::String& deviceIdentifier);
+    juce::String getHardwareMidiOutputDeviceId() const;
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
@@ -80,6 +83,10 @@ private:
     std::atomic<bool> xgModeEnabled { false };
     double currentSampleRate = 44100.0;
     int xgWaitSamples = 0;
+
+    juce::CriticalSection midiOutLock;
+    std::unique_ptr<juce::MidiOutput> hardwareMidiOutput;
+    juce::String currentMidiDeviceId;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(QY70ControllerAudioProcessor)
 };

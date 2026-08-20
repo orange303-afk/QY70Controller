@@ -235,7 +235,8 @@ std::uint64_t maskForCount(std::size_t count)
 } // namespace
 
 QY70ControllerAudioProcessor::QY70ControllerAudioProcessor()
-    : AudioProcessor(BusesProperties()),
+    : AudioProcessor(BusesProperties()
+                         .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       parameters(*this, nullptr, "STATE", createParameterLayout())
 {
     for (auto& mask : effectDirtyMasks)
@@ -256,15 +257,55 @@ void QY70ControllerAudioProcessor::prepareToPlay(double sampleRate, int)
 
 void QY70ControllerAudioProcessor::releaseResources() {}
 
-bool QY70ControllerAudioProcessor::isBusesLayoutSupported(const BusesLayout&) const { return true; }
+bool QY70ControllerAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+{
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
+        && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+
+    return true;
+}
 
 void QY70ControllerAudioProcessor::processBlock(juce::AudioBuffer<float>& audio,
                                                 juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
+
     audio.clear();
+
     remapInputToSelectedPart(midiMessages);
     emitPendingMessages(midiMessages, audio.getNumSamples());
+
+    // Send MIDI / SysEx messages directly to physical MIDI output if connected
+    if (!midiMessages.isEmpty())
+    {
+        const juce::ScopedLock lock(midiOutLock);
+        if (hardwareMidiOutput != nullptr)
+        {
+            hardwareMidiOutput->sendBlockOfMessagesNow(midiMessages);
+        }
+    }
+}
+
+void QY70ControllerAudioProcessor::setHardwareMidiOutputDevice(const juce::String& deviceIdentifier)
+{
+    const juce::ScopedLock lock(midiOutLock);
+    if (currentMidiDeviceId == deviceIdentifier)
+        return;
+
+    hardwareMidiOutput.reset();
+    currentMidiDeviceId = deviceIdentifier;
+
+    if (deviceIdentifier.isNotEmpty() && deviceIdentifier != "host")
+    {
+        hardwareMidiOutput = juce::MidiOutput::openDevice(deviceIdentifier);
+    }
+}
+
+juce::String QY70ControllerAudioProcessor::getHardwareMidiOutputDeviceId() const
+{
+    const juce::ScopedLock lock(const_cast<juce::CriticalSection&>(midiOutLock));
+    return currentMidiDeviceId;
 }
 
 juce::AudioProcessorEditor* QY70ControllerAudioProcessor::createEditor()
@@ -559,54 +600,54 @@ QY70ControllerAudioProcessor::createParameterLayout()
         layout.add(std::make_unique<juce::AudioParameterChoice>(id, name, choices, defaultIndex));
     };
 
-    addInt(ids::part, "Part", 1, 16, 1);
-    addInt(ids::bankMsb, "Voice Mode", 0, 127, 0);
-    addInt(ids::bankLsb, "XG Variation", 0, 127, 0);
-    addInt(ids::program, "Patch", 1, 128, 1);
-    addInt(ids::volume, "Volume", 0, 127, 100);
-    addInt(ids::pan, "Pan", 0, 127, 64);
-    addInt(ids::cutoff, "Cutoff", 0, 127, 64);
-    addInt(ids::resonance, "Resonance", 0, 127, 64);
-    addInt(ids::attack, "Attack", 0, 127, 64);
-    addInt(ids::release, "Release", 0, 127, 64);
-    addInt(ids::chorus, "Chorus Send", 0, 127, 0);
-    addInt(ids::reverb, "Reverb Send", 0, 127, 40);
-    addInt(ids::variation, "Variation Send", 0, 127, 0);
-    addChoice(ids::monoPoly, "Mono / Poly", { "Mono", "Poly" }, 1);
-    addChoice(ids::keyAssign, "Same Note Assign", { "Single", "Multi", "Instrument" }, 1);
-    addChoice(ids::partMode, "Part Mode", { "Normal", "Drum Thru", "Drum 1", "Drum 2" }, 0);
-    addInt(ids::noteShift, "Note Shift", -24, 24, 0);
-    addInt(ids::detune, "Detune (0.1 Hz)", -128, 127, 0);
-    addInt(ids::velocityDepth, "Velocity Depth", 0, 127, 64);
-    addInt(ids::velocityOffset, "Velocity Offset", 0, 127, 64);
-    addInt(ids::noteLimitLow, "Note Limit Low", 0, 127, 0);
-    addInt(ids::noteLimitHigh, "Note Limit High", 0, 127, 127);
-    addInt(ids::dryLevel, "Dry Level", 0, 127, 127);
-    addInt(ids::vibratoRate, "Vibrato Rate", -64, 63, 0);
-    addInt(ids::vibratoDepth, "Vibrato Depth", -64, 63, 0);
-    addInt(ids::vibratoDelay, "Vibrato Delay", -64, 63, 0);
-    addInt(ids::decay, "EG Decay", -64, 63, 0);
-    addInt(ids::mwPitch, "MW Pitch", -24, 24, 0);
-    addInt(ids::mwFilter, "MW Filter", -64, 63, 0);
-    addInt(ids::mwAmplitude, "MW Amplitude", -64, 63, 0);
-    addInt(ids::mwLfoPitch, "MW LFO Pitch Depth", 0, 127, 10);
-    addInt(ids::mwLfoFilter, "MW LFO Filter Depth", 0, 127, 0);
-    addInt(ids::mwLfoAmplitude, "MW LFO Amp Depth", 0, 127, 0);
+    addInt(ids::part, "Part Selection", 1, 16, 1);
+    addInt(ids::bankMsb, "Voice Bank MSB", 0, 127, 0);
+    addInt(ids::bankLsb, "Voice Bank LSB (XG Variation)", 0, 127, 0);
+    addInt(ids::program, "Voice Program (Patch)", 1, 128, 1);
+    addInt(ids::volume, "Part Volume", 0, 127, 100);
+    addInt(ids::pan, "Part Pan", 0, 127, 64);
+    addInt(ids::cutoff, "Part Filter Cutoff", 0, 127, 64);
+    addInt(ids::resonance, "Part Filter Resonance", 0, 127, 64);
+    addInt(ids::attack, "Part EG Attack Time", 0, 127, 64);
+    addInt(ids::release, "Part EG Release Time", 0, 127, 64);
+    addInt(ids::chorus, "Part Chorus Send Level", 0, 127, 0);
+    addInt(ids::reverb, "Part Reverb Send Level", 0, 127, 40);
+    addInt(ids::variation, "Part Variation Send Level", 0, 127, 0);
+    addChoice(ids::monoPoly, "Part Mono / Poly Mode", { "Mono", "Poly" }, 1);
+    addChoice(ids::keyAssign, "Part Same Note Key Assign", { "Single", "Multi", "Instrument" }, 1);
+    addChoice(ids::partMode, "Part Mode (Normal/Drum)", { "Normal", "Drum Thru", "Drum 1", "Drum 2" }, 0);
+    addInt(ids::noteShift, "Part Note Shift (Transpose)", -24, 24, 0);
+    addInt(ids::detune, "Part Pitch Fine Detune", -128, 127, 0);
+    addInt(ids::velocityDepth, "Part Velocity Sense Depth", 0, 127, 64);
+    addInt(ids::velocityOffset, "Part Velocity Sense Offset", 0, 127, 64);
+    addInt(ids::noteLimitLow, "Part Note Limit Low", 0, 127, 0);
+    addInt(ids::noteLimitHigh, "Part Note Limit High", 0, 127, 127);
+    addInt(ids::dryLevel, "Part Dry Level", 0, 127, 127);
+    addInt(ids::vibratoRate, "Part Vibrato Rate", -64, 63, 0);
+    addInt(ids::vibratoDepth, "Part Vibrato Depth", -64, 63, 0);
+    addInt(ids::vibratoDelay, "Part Vibrato Delay", -64, 63, 0);
+    addInt(ids::decay, "Part EG Decay Time", -64, 63, 0);
+    addInt(ids::mwPitch, "Mod Wheel Pitch Bend Depth", -24, 24, 0);
+    addInt(ids::mwFilter, "Mod Wheel Filter Cutoff Depth", -64, 63, 0);
+    addInt(ids::mwAmplitude, "Mod Wheel Amplitude Depth", -64, 63, 0);
+    addInt(ids::mwLfoPitch, "Mod Wheel LFO Pitch Depth", 0, 127, 10);
+    addInt(ids::mwLfoFilter, "Mod Wheel LFO Filter Depth", 0, 127, 0);
+    addInt(ids::mwLfoAmplitude, "Mod Wheel LFO Amp Depth", 0, 127, 0);
     addInt(ids::bendPitch, "Pitch Bend Range", -24, 24, 2);
-    addInt(ids::bendFilter, "Pitch Bend Filter", -64, 63, 0);
-    addInt(ids::bendAmplitude, "Pitch Bend Amplitude", -64, 63, 0);
-    addInt(ids::bendLfoPitch, "Pitch Bend LFO Pitch", 0, 127, 0);
-    addInt(ids::bendLfoFilter, "Pitch Bend LFO Filter", 0, 127, 0);
-    addInt(ids::bendLfoAmplitude, "Pitch Bend LFO Amp", 0, 127, 0);
-    addInt(ids::aftertouchPitch, "Aftertouch Pitch", -24, 24, 0);
-    addInt(ids::aftertouchFilter, "Aftertouch Filter", -64, 63, 0);
-    addInt(ids::aftertouchAmplitude, "Aftertouch Amplitude", -64, 63, 0);
-    addInt(ids::aftertouchLfoPitch, "Aftertouch LFO Pitch", 0, 127, 0);
-    addInt(ids::aftertouchLfoFilter, "Aftertouch LFO Filter", 0, 127, 0);
-    addInt(ids::aftertouchLfoAmplitude, "Aftertouch LFO Amp", 0, 127, 0);
+    addInt(ids::bendFilter, "Pitch Bend Filter Depth", -64, 63, 0);
+    addInt(ids::bendAmplitude, "Pitch Bend Amplitude Depth", -64, 63, 0);
+    addInt(ids::bendLfoPitch, "Pitch Bend LFO Pitch Depth", 0, 127, 0);
+    addInt(ids::bendLfoFilter, "Pitch Bend LFO Filter Depth", 0, 127, 0);
+    addInt(ids::bendLfoAmplitude, "Pitch Bend LFO Amp Depth", 0, 127, 0);
+    addInt(ids::aftertouchPitch, "Aftertouch Pitch Depth", -24, 24, 0);
+    addInt(ids::aftertouchFilter, "Aftertouch Filter Depth", -64, 63, 0);
+    addInt(ids::aftertouchAmplitude, "Aftertouch Amplitude Depth", -64, 63, 0);
+    addInt(ids::aftertouchLfoPitch, "Aftertouch LFO Pitch Depth", 0, 127, 0);
+    addInt(ids::aftertouchLfoFilter, "Aftertouch LFO Filter Depth", 0, 127, 0);
+    addInt(ids::aftertouchLfoAmplitude, "Aftertouch LFO Amp Depth", 0, 127, 0);
     layout.add(std::make_unique<juce::AudioParameterBool>(ids::portamentoSwitch,
-                                                          "Portamento", false));
-    addInt(ids::portamentoTime, "Portamento Time", 0, 127, 0);
+                                                          "Part Portamento Enable", false));
+    addInt(ids::portamentoTime, "Part Portamento Time", 0, 127, 0);
     addInt(ids::pitchEgInitial, "Pitch EG Initial Level", -64, 63, 0);
     addInt(ids::pitchEgAttack, "Pitch EG Attack Time", -64, 63, 0);
     addInt(ids::pitchEgReleaseLevel, "Pitch EG Release Level", -64, 63, 0);

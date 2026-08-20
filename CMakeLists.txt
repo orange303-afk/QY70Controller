@@ -18,17 +18,19 @@ else()
 endif()
 
 juce_add_plugin(QY70Controller
-    COMPANY_NAME "Orange303"
-    BUNDLE_ID "com.orange303.qy70controller"
-    PLUGIN_MANUFACTURER_CODE Orng
+    COMPANY_NAME "Ilya Orange"
+    BUNDLE_ID "com.ilyaorange.qy70controller"
+    PLUGIN_MANUFACTURER_CODE IOrn
     PLUGIN_CODE Qy70
     FORMATS AU VST3 Standalone
     PRODUCT_NAME "QY70 Controller"
     DESCRIPTION "MIDI editor and controller for Yamaha QY70"
-    IS_SYNTH FALSE
-    IS_MIDI_EFFECT TRUE
+    IS_SYNTH TRUE
+    IS_MIDI_EFFECT FALSE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT TRUE
+    NEEDS_AUDIO_INPUT FALSE
+    NEEDS_AUDIO_OUTPUT TRUE
     COPY_PLUGIN_AFTER_BUILD TRUE
     VST3_COPY_DIR "$ENV{HOME}/Library/Audio/Plug-Ins/VST3")
 

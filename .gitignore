@@ -1,6 +1,12 @@
 .DS_Store
 /build/
+/build_univ/
+/release_mac/
 /cmake-build-*/
 /.idea/
 /.vscode/
 *.xcodeproj/xcuserdata/
+*.zip
+graphify-out/
+
+
