@@ -634,21 +634,25 @@ public:
     {
         setOpaque(false);
 
-        // Override text colors for SettingsOverlay children
-        setColour(juce::Label::textColourId, juce::Colour(0xFFEBE7DC));
-        setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xFF161513));
-        setColour(juce::ComboBox::textColourId, juce::Colour(0xFFEBE7DC));
-        setColour(juce::ComboBox::outlineColourId, juce::Colour(0xFF4A453C));
-        setColour(juce::ComboBox::arrowColourId, juce::Colour(0xFFD0C8B8));
+        setColour(juce::Label::textColourId, juce::Colour(0xFF1A1A1A));
+        setColour(juce::ComboBox::backgroundColourId, juce::Colour(HardwareLookAndFeel::lcdBg));
+        setColour(juce::ComboBox::textColourId, juce::Colour(HardwareLookAndFeel::lcdGlow));
+        setColour(juce::ComboBox::outlineColourId, juce::Colour(0xFF222B14));
+        setColour(juce::ComboBox::arrowColourId, juce::Colour(HardwareLookAndFeel::lcdGlow));
 
-        titleLabel.setText(juce::String::fromUTF8("QY70 Controller  \xc2\xb7  Settings"), juce::dontSendNotification);
-        titleLabel.setFont(juce::FontOptions(17.0f, juce::Font::bold));
-        titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFF5F2E8));
+        titleLabel.setText("QY70 Controller  -  Settings", juce::dontSendNotification);
+        titleLabel.setFont(juce::FontOptions(16.0f, juce::Font::bold));
+        titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF1A1A1A));
         addAndMakeVisible(titleLabel);
+
+        closeCrossButton.setColour(juce::TextButton::buttonColourId, juce::Colour(HardwareLookAndFeel::knobBody));
+        closeCrossButton.setColour(juce::TextButton::textColourOffId, juce::Colour(HardwareLookAndFeel::panelLight));
+        closeCrossButton.onClick = [this] { setVisible(false); };
+        addAndMakeVisible(closeCrossButton);
 
         midiOutLabel.setText("MIDI Output Device:", juce::dontSendNotification);
         midiOutLabel.setFont(juce::FontOptions(12.5f, juce::Font::bold));
-        midiOutLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFD4CEBD));
+        midiOutLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF1A1A1A));
         addAndMakeVisible(midiOutLabel);
 
         midiOutCombo.addItem("Host DAW MIDI Output (Default)", 1);
@@ -687,13 +691,13 @@ public:
         appNameLabel.setText("Yamaha QY70 Controller", juce::dontSendNotification);
         appNameLabel.setFont(juce::FontOptions(17.0f, juce::Font::bold));
         appNameLabel.setJustificationType(juce::Justification::centred);
-        appNameLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFF5F2E8));
+        appNameLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF1A1A1A));
         addAndMakeVisible(appNameLabel);
 
         authorLabel.setText("by Ilya Orange", juce::dontSendNotification);
         authorLabel.setFont(juce::FontOptions(13.5f, juce::Font::italic));
         authorLabel.setJustificationType(juce::Justification::centred);
-        authorLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFC4BEAE));
+        authorLabel.setColour(juce::Label::textColourId, juce::Colour(0xFF3A3A3A));
         addAndMakeVisible(authorLabel);
 
         link1.setText("ilyaorange.gumroad.com", juce::dontSendNotification);
@@ -704,15 +708,33 @@ public:
         {
             lk->setFont(juce::FontOptions(13.5f, juce::Font::bold));
             lk->setJustificationType(juce::Justification::centred);
-            lk->setColour(juce::Label::textColourId, juce::Colour(0xFF7ABEFF));
+            lk->setColour(juce::Label::textColourId, juce::Colour(0xFF1058B0));
             lk->setMouseCursor(juce::MouseCursor::PointingHandCursor);
             lk->addMouseListener(this, false);
             addAndMakeVisible(*lk);
         }
+    }
 
-        closeButton.setButtonText("Close Settings");
-        closeButton.onClick = [this] { setVisible(false); };
-        addAndMakeVisible(closeButton);
+    juce::Rectangle<int> getDialogBounds() const
+    {
+        constexpr int dialogWidth = 520;
+        constexpr int dialogHeight = 320;
+        return getLocalBounds().withSizeKeepingCentre(dialogWidth, dialogHeight);
+    }
+
+    juce::Rectangle<int> getMidiCardBounds() const
+    {
+        const auto modalBounds = getDialogBounds();
+        return juce::Rectangle<int>(modalBounds.getX() + 16,
+                                    modalBounds.getY() + 48,
+                                    modalBounds.getWidth() - 32,
+                                    46);
+    }
+
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        if (!getDialogBounds().contains(e.getPosition()))
+            setVisible(false);
     }
 
     void mouseUp(const juce::MouseEvent& e) override
@@ -730,60 +752,68 @@ public:
 
     void paint(juce::Graphics& g) override
     {
-        g.fillAll(juce::Colour(0xD8080706)); // dark modal dimming backdrop
+        g.fillAll(juce::Colour(0x60000000)); // dimming backdrop
 
-        constexpr int dialogWidth = 540;
-        constexpr int dialogHeight = 350;
+        const auto modalBounds = getDialogBounds().toFloat();
 
-        auto modalBounds = getLocalBounds().withSizeKeepingCentre(dialogWidth, dialogHeight).toFloat();
-
-        // Main modal dialog panel background
-        g.setColour(juce::Colour(0xFF22201D));
+        // Outer dark casing rim
+        g.setColour(juce::Colour(0xFF1C1E1A));
         g.fillRoundedRectangle(modalBounds, 10.0f);
 
-        // Header bar inside dialog
-        auto header = modalBounds.removeFromTop(40.0f);
-        g.setColour(juce::Colour(0xFF2E2B27));
-        g.fillRoundedRectangle(header, 10.0f);
+        auto innerBounds = modalBounds.reduced(2.0f);
 
-        // Sub-panel background for MIDI Out controls
-        const auto fullModal = getLocalBounds().withSizeKeepingCentre(dialogWidth, dialogHeight).toFloat();
-        auto midiCard = juce::Rectangle<float>(fullModal.getX() + 16.0f,
-                                               fullModal.getY() + 48.0f,
-                                               fullModal.getWidth() - 32.0f,
-                                               50.0f);
-        g.setColour(juce::Colour(0xFF181715));
+        // Main panel silver metallic gradient
+        juce::ColourGradient panelGrad(
+            juce::Colour(HardwareLookAndFeel::panelLight), innerBounds.getX(), innerBounds.getY(),
+            juce::Colour(HardwareLookAndFeel::panelDark),  innerBounds.getRight(), innerBounds.getBottom(),
+            false);
+        panelGrad.addColour(0.5, juce::Colour(HardwareLookAndFeel::panelBg));
+        g.setGradientFill(panelGrad);
+        g.fillRoundedRectangle(innerBounds, 8.0f);
+
+        // Header strip
+        auto header = innerBounds.removeFromTop(38.0f);
+        g.setColour(juce::Colour(HardwareLookAndFeel::panelBg).darker(0.08f));
+        g.fillRoundedRectangle(header, 8.0f);
+        g.setColour(juce::Colour(0xFF787878));
+        g.fillRect(header.getX(), header.getBottom() - 1.0f, header.getWidth(), 1.0f);
+
+        // Outer bevel (raised panel look)
+        HardwareLookAndFeel::drawBevel(g, modalBounds.reduced(2.0f), 1.5f, true);
+
+        // Sunken MIDI card background
+        const auto midiCard = getMidiCardBounds().toFloat();
+        g.setColour(juce::Colour(0x50000000));
         g.fillRoundedRectangle(midiCard, 6.0f);
-        g.setColour(juce::Colour(0xFF383530));
-        g.drawRoundedRectangle(midiCard, 6.0f, 1.0f);
 
-        // Outer border
-        g.setColour(juce::Colour(0xFF5A544A));
-        g.drawRoundedRectangle(fullModal, 10.0f, 1.8f);
+        auto cardInner = midiCard.reduced(1.5f);
+        g.setColour(juce::Colour(HardwareLookAndFeel::panelBg).darker(0.14f));
+        g.fillRoundedRectangle(cardInner, 5.0f);
+
+        // Inner shadow on MIDI card
+        juce::ColourGradient topShadow(
+            juce::Colour(0x40000000), cardInner.getX(), cardInner.getY(),
+            juce::Colour(0x00000000), cardInner.getX(), cardInner.getY() + 10.0f, false);
+        g.setGradientFill(topShadow);
+        g.fillRoundedRectangle(cardInner, 5.0f);
     }
 
     void resized() override
     {
-        constexpr int dialogWidth = 540;
-        constexpr int dialogHeight = 350;
+        const auto modalBounds = getDialogBounds();
 
-        auto modalBounds = getLocalBounds().withSizeKeepingCentre(dialogWidth, dialogHeight);
+        // Header title & close cross button
+        titleLabel.setBounds(modalBounds.getX() + 16, modalBounds.getY() + 5, modalBounds.getWidth() - 64, 28);
+        closeCrossButton.setBounds(modalBounds.getRight() - 36, modalBounds.getY() + 6, 26, 26);
 
-        // Header title
-        titleLabel.setBounds(modalBounds.getX() + 16, modalBounds.getY() + 6, modalBounds.getWidth() - 32, 28);
-
-        // MIDI Card Area
-        auto midiCardRect = juce::Rectangle<int>(modalBounds.getX() + 16, modalBounds.getY() + 48, modalBounds.getWidth() - 32, 50);
-        auto midiContent = midiCardRect.reduced(12, 10);
+        // MIDI Card Area & Controls
+        auto midiContent = getMidiCardBounds().reduced(12, 7);
         midiOutLabel.setBounds(midiContent.removeFromLeft(150));
         midiOutCombo.setBounds(midiContent);
 
-        // Close button at bottom right
-        closeButton.setBounds(modalBounds.getRight() - 136, modalBounds.getBottom() - 42, 120, 30);
-
-        // About Block: vertically centered between MIDI card and Close button
-        const int aboutAreaTop = modalBounds.getY() + 108;
-        const int aboutAreaBottom = modalBounds.getBottom() - 50;
+        // About Block: vertically centered between Y = modalBounds.getY() + 104 and Y = modalBounds.getBottom() - 16
+        const int aboutAreaTop = modalBounds.getY() + 104;
+        const int aboutAreaBottom = modalBounds.getBottom() - 16;
         const int aboutAreaH = aboutAreaBottom - aboutAreaTop;
 
         constexpr int totalAboutH = 136;
@@ -808,12 +838,12 @@ public:
 private:
     QY70ControllerAudioProcessor& audioProcessor;
     juce::Label titleLabel;
+    juce::TextButton closeCrossButton { juce::String::fromUTF8("\xe2\x9c\x95") };
     juce::Label midiOutLabel;
     juce::ComboBox midiOutCombo;
     juce::Label appNameLabel;
     juce::Label authorLabel;
     juce::Label link1, link2, link3;
-    juce::TextButton closeButton;
 };
 
 QY70ControllerAudioProcessorEditor::QY70ControllerAudioProcessorEditor(
@@ -1224,7 +1254,7 @@ void QY70ControllerAudioProcessorEditor::showVoiceMenu()
                                                  static_cast<int>(voice.name.size()));
         auto itemText = name + "   P" + juce::String(voice.program);
         if (voice.bankLsb != 0)
-            itemText += " · V" + juce::String(voice.bankLsb);
+            itemText += " V" + juce::String(voice.bankLsb);
 
         const auto isCurrent = voice.bankMsb == currentMsb
                                && voice.program == currentProgram
